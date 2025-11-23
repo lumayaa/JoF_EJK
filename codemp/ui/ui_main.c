@@ -6868,7 +6868,7 @@ int UI_HeadIndexForModel(const char *model) {
 				matchesTeam = qtrue;
 			else if (!ui_sv_pure.integer && !Q_stricmp(skinName, "/sp") && Q_stricmp(uiInfo.q3HeadNames[i], "trandoshan/sp") && Q_stricmp(uiInfo.q3HeadNames[i], "weequay/sp"))
 				matchesTeam = qtrue;
-			else if (!ui_sv_pure.integer && ui_showAllSkins.integer && Q_stricmpn(uiInfo.q3HeadNames[i], "default", 7) && Q_stricmp(skinName, "/red") && Q_stricmp(skinName, "/blue") && Q_stricmp(skinName, "/sp") && Q_stricmpn(skinName, "/rgb", 4))
+                else if (!ui_sv_pure.integer && ui_showAllSkins.integer > 0 && Q_stricmpn(uiInfo.q3HeadNames[i], "default", 7) && Q_stricmp(skinName, "/red") && Q_stricmp(skinName, "/blue") && Q_stricmp(skinName, "/sp") && Q_stricmpn(skinName, "/rgb", 4))
 				matchesTeam = qtrue;
 		}
 		else if (uiSkinColor == 3)
@@ -9548,7 +9548,7 @@ static int UI_HeadCountByColor(void) {
 					c++;
 				else if (!ui_sv_pure.integer && !Q_stricmp(skinName, "/sp") && Q_stricmp(uiInfo.q3HeadNames[i], "trandoshan/sp") && Q_stricmp(uiInfo.q3HeadNames[i], "weequay/sp"))
 					c++;
-				else if (!ui_sv_pure.integer &&  ui_showAllSkins.integer && Q_stricmpn(uiInfo.q3HeadNames[i], "default", 7) && Q_stricmp(skinName, "/red") && Q_stricmp(skinName, "/blue") && Q_stricmp(skinName, "/sp") && Q_stricmpn(skinName, "/rgb", 4))
+                                else if (!ui_sv_pure.integer &&  ui_showAllSkins.integer > 0 && Q_stricmpn(uiInfo.q3HeadNames[i], "default", 7) && Q_stricmp(skinName, "/red") && Q_stricmp(skinName, "/blue") && Q_stricmp(skinName, "/sp") && Q_stricmpn(skinName, "/rgb", 4))
 					c++;
 			}
 			else if (uiSkinColor == 3)
@@ -10457,7 +10457,7 @@ static const char *UI_SelectedTeamHead(int index, int *actual) {
 					valid = qtrue;
 				else if (!ui_sv_pure.integer && !Q_stricmp(skinName, "/sp") && Q_stricmp(uiInfo.q3HeadNames[i], "trandoshan/sp") && Q_stricmp(uiInfo.q3HeadNames[i], "weequay/sp"))
 					valid = qtrue;
-				else if (ui_showAllSkins.integer && !ui_sv_pure.integer && Q_stricmpn(uiInfo.q3HeadNames[i], "default", 7) && Q_stricmp(skinName, "/red") && Q_stricmp(skinName, "/blue") && Q_stricmp(skinName, "/sp") && Q_stricmpn(skinName, "/rgb", 4))
+                                else if (ui_showAllSkins.integer > 0 && !ui_sv_pure.integer && Q_stricmpn(uiInfo.q3HeadNames[i], "default", 7) && Q_stricmp(skinName, "/red") && Q_stricmp(skinName, "/blue") && Q_stricmp(skinName, "/sp") && Q_stricmpn(skinName, "/rgb", 4))
 					valid = qtrue;
 			}
 			else if (!Q_stricmp(skinName, teamname)) {
@@ -11971,8 +11971,8 @@ static qboolean bIsSkinFile(const char* dirptr, const char* skinname)
 	char fpath[MAX_QPATH];
 	int f;
 
-	if (!ui_showAllSkins.integer)
-		return qfalse;
+        if (ui_showAllSkins.integer <= 0)
+                return qfalse;
 
 	//don't list non-humanoid skins... - these aren't caught by the other checks below
 	if (!Q_stricmpn(dirptr, "default", 7))
@@ -12124,24 +12124,32 @@ void UI_BuildQ3Model_List( void )
 				//uiInfo.q3HeadIcons[uiInfo.q3HeadCount++] = 0;//trap->R_RegisterShaderNoMip(fpath);
 				uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = 0;//uiInfo.uiDC.Assets.defaultIcon;
 
-				{//dxdfe?
-					char iconPath[MAX_QPATH] = {0};
+                                {//dxdfe?
+                                        char iconPath[MAX_QPATH] = {0};
 
-					Com_sprintf(iconPath, sizeof(iconPath), "models/players/%s/icon_%s", dirptr, skinname+1);
+                                        Com_sprintf(iconPath, sizeof(iconPath), "models/players/%s/icon_%s", dirptr, skinname+1);
 
-					uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = trap->R_RegisterShaderNoMip(iconPath);
-					if (ui_showAllSkins.integer && !ui_sv_pure.integer && !uiInfo.q3HeadIcons[uiInfo.q3HeadCount])
-					{
-						if (!Q_stricmp(skinname+1, "red"))
-							uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIconRed;
-						else if (!Q_stricmp(skinname+1, "blue"))
-							uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIconBlue;
-						else if (!Q_stricmpn(skinname+1, "rgb", 3) || !Q_stricmp(skinname+1, "sp"))
-							uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIconRGB;
-						else
-							uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIcon;
-					}
-				}
+                                        uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = trap->R_RegisterShaderNoMip(iconPath);
+                                        if (!uiInfo.q3HeadIcons[uiInfo.q3HeadCount])
+                                        {
+                                                if (ui_showAllSkins.integer >= 2 && !ui_sv_pure.integer)
+                                                {
+                                                        if (!Q_stricmp(skinname+1, "red"))
+                                                                uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIconRed;
+                                                        else if (!Q_stricmp(skinname+1, "blue"))
+                                                                uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIconBlue;
+                                                        else if (!Q_stricmpn(skinname+1, "rgb", 3) || !Q_stricmp(skinname+1, "sp"))
+                                                                uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIconRGB;
+                                                        else
+                                                                uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIcon;
+                                                }
+                                                else if (ui_showAllSkins.integer > 0)
+                                                {
+                                                        uiInfo.q3HeadNames[uiInfo.q3HeadCount][0] = '\0';
+                                                        continue;
+                                                }
+                                        }
+                                }
 
 				uiInfo.q3HeadCount++;
 				//rww - we are now registering them as they are drawn like the TA feeder, so as to decrease UI load time.

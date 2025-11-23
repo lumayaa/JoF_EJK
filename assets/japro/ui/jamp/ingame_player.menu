@@ -298,6 +298,7 @@
 			{
 				@MENUS_OFF 0
 				@MENUS_ON 1
+				"All" 2
 			}
 			rect				200 50 160 20
 			textalign			ITEM_ALIGN_LEFT
@@ -311,7 +312,7 @@
 			border				0
 			bordercolor			0 0 0 0
 			visible				1
-			descText			"Shows or hides the icons of models that aren't default, team or RGB, as well as missing icons."
+			descText			"Shows or hides the icons of models that aren't default, team or RGB; All also lists skins with missing icons."
 			action
 			{
 				play			"sound/interface/button1.wav" ;
