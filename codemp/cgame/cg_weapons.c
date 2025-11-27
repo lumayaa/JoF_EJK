@@ -215,6 +215,63 @@ static int CG_MapTorsoToWeaponFrame( clientInfo_t *ci, int frame, int animNum ) 
 	return -1;
 }
 
+static qhandle_t CG_MuzzleFlashShader(int weaponNum) {
+	switch (weaponNum)
+	{
+	case WP_BRYAR_PISTOL:
+	case WP_BRYAR_OLD:
+		return cgs.media.bryarFrontFlash;
+	case WP_BOWCASTER:
+		return cgs.media.greenFrontFlash;
+	case WP_DEMP2:
+		return cgs.media.lightningFlash;
+	default:
+		return cgs.media.bryarFrontFlash;
+	}
+}
+
+
+static byte CG_ColorChannelToByte(float c) {
+        if (c < 0.0f)
+        {
+                return 0;
+        }
+        if (c > 1.0f)
+        {
+                c = 1.0f;
+        }
+        return (byte)(c * 255.0f);
+}
+
+static void CG_AddMuzzleFlashSprite(const vec3_t origin, const vec3_t forward, const weaponInfo_t *weapon, int weaponNum, qboolean firstPerson)
+{
+	refEntity_t flashFX;
+	qhandle_t shader = CG_MuzzleFlashShader(weaponNum);
+
+	if (!shader)
+	{
+		return;
+	}
+
+	memset(&flashFX, 0, sizeof(flashFX));
+	flashFX.reType = RT_SPRITE;
+	VectorMA(origin, 1.0f, forward, flashFX.origin);
+	flashFX.radius = 8.0f;
+	flashFX.rotation = Q_flrand(0.0f, 360.0f);
+	flashFX.customShader = shader;
+	flashFX.shaderRGBA[0] = CG_ColorChannelToByte(weapon->flashDlightColor[0]);
+	flashFX.shaderRGBA[1] = CG_ColorChannelToByte(weapon->flashDlightColor[1]);
+	flashFX.shaderRGBA[2] = CG_ColorChannelToByte(weapon->flashDlightColor[2]);
+	flashFX.shaderRGBA[3] = 255;
+	flashFX.renderfx = RF_DEPTHHACK | RF_NOSHADOW;
+	if (firstPerson)
+	{
+		flashFX.renderfx |= RF_FIRST_PERSON;
+	}
+
+	trap->R_AddRefEntityToScene(&flashFX);
+}
+
 
 /*
 ==============
@@ -665,9 +722,9 @@ Ghoul2 Insert End
 					CGCam_Shake( val * val * /*0.3f*/0.6f, 100 );
 			}
 		}
-
+		
 		val += Q_flrand(0.0f, 1.0f) * 0.5f;
-
+		
 		VectorCopy(flashorigin, fxSArgs.origin);
 		VectorClear(fxSArgs.vel);
 		VectorClear(fxSArgs.accel);
@@ -681,10 +738,31 @@ Ghoul2 Insert End
 		fxSArgs.life = cg.frametime;
 		fxSArgs.shader = shader;
 		fxSArgs.flags = 0x08000000;
-
-		//FX_AddSprite( flash.origin, NULL, NULL, 3.0f * val, 0.0f, 0.7f, 0.7f, WHITE, WHITE, Q_flrand(0.0f, 1.0f) * 360, 0.0f, 1.0f, shader, FX_USE_ALPHA );
-		trap->FX_AddSprite(&fxSArgs);
-	}
+		
+		if (!thirdPerson && ps && cent->currentState.number == ps->clientNum)
+		{
+			// Render in first person space so it stays locked to the view weapon.
+			refEntity_t chargeFX;
+			memset(&chargeFX, 0, sizeof(chargeFX));
+			chargeFX.reType = RT_SPRITE;
+			VectorCopy(flashorigin, chargeFX.origin);
+			chargeFX.radius = fxSArgs.scale;
+			chargeFX.rotation = fxSArgs.rotation;
+			chargeFX.customShader = shader;
+			chargeFX.shaderRGBA[0] = 0xFF;
+			chargeFX.shaderRGBA[1] = 0xFF;
+			chargeFX.shaderRGBA[2] = 0xFF;
+			chargeFX.shaderRGBA[3] = (byte)(fxSArgs.sAlpha * 255.0f);
+			chargeFX.renderfx = RF_FIRST_PERSON | RF_DEPTHHACK | RF_NOSHADOW;
+			
+			trap->R_AddRefEntityToScene(&chargeFX);
+		}
+		else
+		{
+			//FX_AddSprite( flash.origin, NULL, NULL, 3.0f * val, 0.0f, 0.7f, 0.7f, WHITE, WHITE, Q_flrand(0.0f, 1.0f) * 360, 0.0f, 1.0f, shader, FX_USE_ALPHA );
+			trap->FX_AddSprite(&fxSArgs);
+		}
+		}
 
 	// make sure we aren't looking at cg.predictedPlayerEntity for LG
 	nonPredictedCent = &cg_entities[cent->currentState.clientNum];
@@ -742,40 +820,40 @@ Ghoul2 Insert End
 		}
 
 		if ( cg.time - cent->muzzleFlashTime <= MUZZLE_FLASH_TIME + 10 )
-		{	// Handle muzzle flashes
-			if ( cent->currentState.eFlags & EF_ALT_FIRING )
-			{	// Check the alt firing first.
-				if (weapon->altMuzzleEffect)
-				{
-					if (!thirdPerson)
-					{
-						trap->FX_PlayEntityEffectID(weapon->altMuzzleEffect, flashorigin, flash.axis, -1, -1, -1, -1);
-					}
-					else
-					{
-						trap->FX_PlayEffectID(weapon->altMuzzleEffect, flashorigin, flashdir, -1, -1, qfalse);
-					}
-					cent->muzzleFlashTime = 0; //japro - fix loud gunshots with high fps
-				}
-			}
-			else
-			{	// Regular firing
-				if (weapon->muzzleEffect)
-				{
-					if (!thirdPerson)
-					{
-						trap->FX_PlayEntityEffectID(weapon->muzzleEffect, flashorigin, flash.axis, -1, -1, -1, -1);
-					}
-					else
-					{
-						trap->FX_PlayEffectID(weapon->muzzleEffect, flashorigin, flashdir, -1, -1, qfalse);
-					}
-					cent->muzzleFlashTime = 0; //japro - fix loud gunshots with high fps
-				}
-			}
-		}
+                {       // Handle muzzle flashes
+                        if ( cent->currentState.eFlags & EF_ALT_FIRING )
+                        {       // Check the alt firing first.
+                                if (weapon->altMuzzleEffect)
+                                {
+                                        if (!thirdPerson && ps && cent->currentState.number == ps->clientNum)
+                                        {
+                                                CG_AddMuzzleFlashSprite(flashorigin, flashdir, weapon, weaponNum, qtrue);
+                                        }
+                                        else
+                                        {
+                                                CG_AddMuzzleFlashSprite(flashorigin, flashdir, weapon, weaponNum, qfalse);
+                                        }
+                                        cent->muzzleFlashTime = 0; //japro - fix loud gunshots with high fps
+                                }
+                        }
+                        else
+                        {       // Regular firing
+                                if (weapon->muzzleEffect)
+                                {
+                                        if (!thirdPerson && ps && cent->currentState.number == ps->clientNum)
+                                        {
+                                                CG_AddMuzzleFlashSprite(flashorigin, flashdir, weapon, weaponNum, qtrue);
+                                        }
+                                        else
+                                        {
+                                                CG_AddMuzzleFlashSprite(flashorigin, flashdir, weapon, weaponNum, qfalse);
+                                        }
+                                        cent->muzzleFlashTime = 0; //japro - fix loud gunshots with high fps
+                                }
+                        }
+                }
 
-		// add lightning bolt
+                // add lightning bolt
 		CG_LightningBolt( nonPredictedCent, flashorigin );
 
 		if ( weapon->flashDlightColor[0] || weapon->flashDlightColor[1] || weapon->flashDlightColor[2] ) {
