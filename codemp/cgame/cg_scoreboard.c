@@ -95,6 +95,7 @@ typedef struct scoreboardContextRect_s {
 static qboolean localClient; // true if local client has been displayed
 static scoreboardContextRect_t cg_scoreboardContext;
 static scoreboardContextRect_t cg_scoreboardOptions[2];
+static scoreboardContextRect_t cg_scoreboardExitButton;
 
 /*
 =================
@@ -141,14 +142,47 @@ static void CG_DrawScoreboardCursor(void) {
 	CG_DrawPic(cgs.cursorX - 16, cgs.cursorY - 16, 32, 32, cgs.media.selectCursor);
 }
 
-static void CG_DrawScoreboardContextMenu(float fade) {
-	vec4_t bg = { 0.0f, 0.0f, 0.0f, 0.7f * fade };
+static void CG_DrawScoreboardExitButton(float fade) {
+	const float x = 1.0f;
+	const float y = 1.0f;
 	vec4_t hover = { 1.0f, 1.0f, 1.0f, 0.1f * fade };
-	const float optionHeight = 22.0f;
-	float width = 220.0f;
+	const char *label = "Exit Scoreboard";
+	float textScale = 0.75f;
+	float textWidth = CG_Text_Width(label, textScale, FONT_MEDIUM);
+	int textHeight = CG_Text_Height(label, textScale, FONT_MEDIUM);
+	qhandle_t background = trap->R_RegisterShaderNoMip("gfx/menus/menu_buttonback.tga");
+	
+	
+	if (!cg.scoreBoardFromMenu) {
+		memset(&cg_scoreboardExitButton, 0, sizeof(cg_scoreboardExitButton));
+		return;
+	}
+
+	cg_scoreboardExitButton.x = x;
+	cg_scoreboardExitButton.y = y;
+	cg_scoreboardExitButton.w = textWidth + 5;
+	cg_scoreboardExitButton.h = textHeight + 5;
+	
+	CG_DrawPic(x, y, cg_scoreboardExitButton.w,  cg_scoreboardExitButton.h, background);
+
+	if (CG_PointInContextRect(&cg_scoreboardExitButton, cgs.cursorX, cgs.cursorY)) {
+		CG_FillRect(x, y, cg_scoreboardExitButton.w,  cg_scoreboardExitButton.h, hover);
+	}
+	
+
+	CG_Text_Paint(x, y,
+	              textScale, colorTable[CT_WHITE], label, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE, FONT_MEDIUM);
+}
+
+static void CG_DrawScoreboardContextMenu(float fade) {
+	vec4_t hover = { 1.0f, 1.0f, 1.0f, 0.1f * fade };
+	const float optionHeight = 24.0f;
+	const float padding = 6.0f;
+	float width = 150.0f;
 	float x = cg.scoreBoardContextX;
 	float y = cg.scoreBoardContextY;
-	float height = optionHeight * 2.0f;
+	float height = (optionHeight * 2.0f) + (padding * 2.0f);
+	float contentY;
 	int i;
 	int clientNum = cg.scoreBoardContextClient;
 	const char *ignoreLabel;
@@ -169,15 +203,19 @@ static void CG_DrawScoreboardContextMenu(float fade) {
 	cg_scoreboardContext.w = width;
 	cg_scoreboardContext.h = height;
 
+	contentY = y + padding;
+
 	for (i = 0; i < 2; i++) {
+		float optionY = contentY + (i * optionHeight);
+
 		cg_scoreboardOptions[i].x = x;
-		cg_scoreboardOptions[i].y = y + (i * optionHeight);
+		cg_scoreboardOptions[i].y = optionY;
 		cg_scoreboardOptions[i].w = width;
 		cg_scoreboardOptions[i].h = optionHeight;
 	}
-
+	
+	vec4_t bg = { 0.0f, 0.0f, 0.0f, 1.0f * fade };
 	CG_FillRect(x, y, width, height, bg);
-	CG_DrawRect(x, y, width, height, 1, colorTable[CT_WHITE]);
 
 	for (i = 0; i < 2; i++) {
 		if (CG_PointInContextRect(&cg_scoreboardOptions[i], cgs.cursorX, cgs.cursorY)) {
@@ -185,16 +223,16 @@ static void CG_DrawScoreboardContextMenu(float fade) {
 		}
 	}
 
-	CG_Text_Paint(x + 10, y + optionHeight - 6, 0.75f, colorTable[CT_WHITE], "Whisper player", 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE, FONT_MEDIUM);
-	ignoreLabel = cg.scoreBoardIgnored[clientNum] ? "Unignore player" : "Ignore player";
+	CG_Text_Paint(x + 12, cg_scoreboardOptions[0].y, 0.75f, colorTable[CT_WHITE], "Whisper player", 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE, FONT_MEDIUM);
+	ignoreLabel = cgs.ignoredVGS & 1<<clientNum ? "Unignore player" : "Ignore player";
 
-	CG_Text_Paint(x + 10, y + (optionHeight * 2) - 6, 0.75f, colorTable[CT_WHITE], ignoreLabel, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE, FONT_MEDIUM);
+	CG_Text_Paint(x + 12, cg_scoreboardOptions[1].y, 0.75f, colorTable[CT_WHITE], ignoreLabel, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE, FONT_MEDIUM);
 }
 
 static void CG_HandleScoreboardMouse(float fade) {
-        scoreBoardLine_t hoveredLine;
-        int hoveredClient;
-        qboolean mouseDown;
+	scoreBoardLine_t hoveredLine;
+	int hoveredClient;
+	qboolean mouseDown;
 
 	if (!cg.scoreBoardShowing) {
 		cg.scoreBoardHoverClient = -1;
@@ -202,10 +240,53 @@ static void CG_HandleScoreboardMouse(float fade) {
 		return;
 	}
 
-        if (!cg.scoreBoardFromMenu && !(trap->Key_GetCatcher() & (KEYCATCH_UI | KEYCATCH_CGAME))) {
-                cg.scoreBoardHoverClient = -1;
-                return;
-        }
+	if (!cg.scoreBoardFromMenu && !(trap->Key_GetCatcher() & (KEYCATCH_UI | KEYCATCH_CGAME))) {
+		cg.scoreBoardHoverClient = -1;
+		return;
+	}
+
+	mouseDown = trap->Key_IsDown(A_MOUSE1);
+
+	if (cg.scoreBoardFromMenu && mouseDown && !cg.scoreBoardMouseDown &&
+		CG_PointInContextRect(&cg_scoreboardExitButton, cgs.cursorX, cgs.cursorY)) {
+		CG_CloseMenuScoreboard();
+		return;
+	}
+
+	if (cg.scoreBoardContextOpen) {
+		cg.scoreBoardHoverClient = -1;
+
+		if (mouseDown && !cg.scoreBoardMouseDown) {
+			int selectedClient = cg.scoreBoardContextClient;
+
+			if (CG_PointInContextRect(&cg_scoreboardOptions[0], cgs.cursorX, cgs.cursorY)) {
+				CG_CloseMenuScoreboard();
+				trap->MessageMode3(selectedClient);
+				return;
+			}
+
+			if (CG_PointInContextRect(&cg_scoreboardOptions[1], cgs.cursorX, cgs.cursorY)) {
+				CG_CloseMenuScoreboard();
+				trap->SendClientCommand(va("ignore %i", selectedClient));
+				return;
+			}
+			if (!CG_PointInContextRect(&cg_scoreboardContext, cgs.cursorX, cgs.cursorY)) {
+				cg.scoreBoardContextOpen = qfalse;
+			}
+		}
+
+		cg.scoreBoardMouseDown = mouseDown;
+
+		if (cg.scoreBoardContextOpen) {
+			CG_DrawScoreboardContextMenu(fade);
+		}
+
+		if (cg.scoreBoardFromMenu) {
+			CG_DrawScoreboardCursor();
+		}
+
+		return;
+	}
 
 	memset(&hoveredLine, 0, sizeof(hoveredLine));
 	hoveredClient = CG_ScoreboardClientAt(cgs.cursorX, cgs.cursorY, &hoveredLine);
@@ -216,26 +297,8 @@ static void CG_HandleScoreboardMouse(float fade) {
 		CG_FillRect(hoveredLine.x, hoveredLine.y, hoveredLine.width, hoveredLine.height, highlight);
 	}
 
-        mouseDown = trap->Key_IsDown(A_MOUSE1);
-        if (mouseDown && !cg.scoreBoardMouseDown) {
-                if (cg.scoreBoardContextOpen) {
-                        if (CG_PointInContextRect(&cg_scoreboardOptions[0], cgs.cursorX, cgs.cursorY)) {
-				CG_CloseMenuScoreboard();
-				trap->SendConsoleCommand(va("messagemode_player %i\n", cg.scoreBoardContextClient));
-				return;
-			}
-
-			if (CG_PointInContextRect(&cg_scoreboardOptions[1], cgs.cursorX, cgs.cursorY)) {
-				trap->SendClientCommand(va("ignore %i", cg.scoreBoardContextClient));
-				cg.scoreBoardIgnored[cg.scoreBoardContextClient] = !cg.scoreBoardIgnored[cg.scoreBoardContextClient];
-				cg.scoreBoardContextOpen = qfalse;
-				return;
-			}
-			if (!CG_PointInContextRect(&cg_scoreboardContext, cgs.cursorX, cgs.cursorY)) {
-				cg.scoreBoardContextOpen = qfalse;
-			}
-		}
-		else if (hoveredClient >= 0) {
+	if (mouseDown && !cg.scoreBoardMouseDown) {
+		if (hoveredClient >= 0) {
 			cg.scoreBoardContextClient = hoveredClient;
 			cg.scoreBoardContextX = cgs.cursorX;
 			cg.scoreBoardContextY = cgs.cursorY;
@@ -243,7 +306,7 @@ static void CG_HandleScoreboardMouse(float fade) {
 		}
 	}
 
-        cg.scoreBoardMouseDown = mouseDown;
+	cg.scoreBoardMouseDown = mouseDown;
 
 	if (cg.scoreBoardContextOpen) {
 		CG_DrawScoreboardContextMenu(fade);
@@ -899,6 +962,11 @@ qboolean CG_DrawOldScoreboard( void ) {
 	int topBorderSize, bottomBorderSize;
 
 	cg.scoreBoardLineCount = 0;
+	
+	if (cg.scoreBoardFromMenu && !(trap->Key_GetCatcher() & KEYCATCH_CGAME)) {
+		CG_CloseMenuScoreboard();
+		return qfalse;
+	}
 
 	if (!cg.showScores && cg.scoreBoardFromMenu) {
 		CG_CloseMenuScoreboard();
@@ -919,23 +987,25 @@ qboolean CG_DrawOldScoreboard( void ) {
 		 cg.predictedPlayerState.pm_type == PM_INTERMISSION ) {
 		fade = 1.0;
 		fadeColor = colorWhite;
-	} else {
-		fadeColor = CG_FadeColor( cg.scoreFadeTime, FADE_TIME );
+        } else {
+                fadeColor = CG_FadeColor( cg.scoreFadeTime, FADE_TIME );
 
-		if ( !fadeColor ) {
+                if ( !fadeColor ) {
 			// next time scoreboard comes up, don't print killer
 			cg.deferredPlayerLoading = 0;
 			cg.killerName[0] = 0;
 			return qfalse;
-		}
-		fade = *fadeColor;
-	}
+                }
+                fade = *fadeColor;
+        }
 
-	// fragged by ... line
-	// or if in intermission and duel, prints the winner of the duel round
-	if ((cgs.gametype == GT_DUEL || cgs.gametype == GT_POWERDUEL) && cgs.duelWinner != -1 &&
-		cg.predictedPlayerState.pm_type == PM_INTERMISSION)
-	{
+        CG_DrawScoreboardExitButton(fade);
+
+        // fragged by ... line
+        // or if in intermission and duel, prints the winner of the duel round
+        if ((cgs.gametype == GT_DUEL || cgs.gametype == GT_POWERDUEL) && cgs.duelWinner != -1 &&
+                cg.predictedPlayerState.pm_type == PM_INTERMISSION)
+        {
 		s = va("%s^7 %s", cgs.clientinfo[cgs.duelWinner].name, CG_GetStringEdString("MP_INGAME", "DUEL_WINS") );
 		/*w = CG_DrawStrlen( s ) * BIGCHAR_WIDTH;
 		x = ( SCREEN_WIDTH - w ) / 2;

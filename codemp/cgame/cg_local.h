@@ -1121,7 +1121,6 @@ typedef struct cg_s {
 	int				scoreBoardContextX;
 	int				scoreBoardContextY;
 	int				scoreBoardLineCount;
-	unsigned char	scoreBoardIgnored[MAX_CLIENTS];
 	scoreBoardLine_t	scoreBoardLines[MAX_CLIENTS];
 	int				scoreFadeTime;
 	char			killerName[MAX_NETNAME];

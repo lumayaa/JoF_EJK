@@ -99,6 +99,9 @@ int trap_FS_GetFileList(  const char *path, const char *extension, char *listbuf
 void trap_SendConsoleCommand( const char *text ) {
 	Q_syscall( CG_SENDCONSOLECOMMAND, text );
 }
+void trap_MessageMode3( int clientNum ) {
+	Q_syscall( CG_MESSAGE_MODE3, clientNum );
+}
 void trap_AddCommand( const char *cmdName ) {
 	Q_syscall( CG_ADDCOMMAND, cmdName );
 }
@@ -768,6 +771,7 @@ static void TranslateSyscalls( void ) {
 	trap->RemoveCommand						= trap_RemoveCommand;
 	trap->SendClientCommand					= trap_SendClientCommand;
 	trap->SendConsoleCommand				= trap_SendConsoleCommand;
+	trap->MessageMode3					= trap_MessageMode3;
 	trap->FS_Close							= trap_FS_FCloseFile;
 	trap->FS_GetFileList					= trap_FS_GetFileList;
 	trap->FS_Open							= trap_FS_FOpenFile;

@@ -8,7 +8,7 @@
 		visible					0
 		fullscreen				0
 		outOfBoundsClick							// this closes the window if it gets a click out of the rectangle
-		rect					10 40 380 280
+		rect					10 40 380 320
 		focusColor				1 .75 0 1
 		style					1
 		border					1
@@ -20,7 +20,7 @@
 			name				background_pic
 			group				none
 			style				WINDOW_STYLE_SHADER
-			rect				0 0 500 260
+			rect				0 0 500 300
 			background			"gfx/menus/menu_box_ingame"
 			forecolor			1 1 1 1
 			visible				1
@@ -241,7 +241,7 @@
 		itemDef 
 		{
 			name				about
-			rect				10 180 360 20
+			rect				10 200 360 20
 			type				4
 			maxPaintChars			4
 			style				0	
@@ -260,15 +260,15 @@
 		itemDef 
 		{
 			name				about
-			rect				10 210 360 20
+			rect				12 272 200 20
 			type				4
 			style				0	
 			text				@MENUS_VERSION
 			cvar				ui_version 
 			maxPaintChars		40
-			textalign			ITEM_ALIGN_CENTER		
-			textalignx			180
-			textaligny			14  
+			textalign			ITEM_ALIGN_LEFT		
+			textalignx			0
+			textaligny			-3  
 			font				4
 			textscale			1
 			forecolor			1 .682 0 1
@@ -281,7 +281,7 @@
 			name							scoreboard_button_back
 			group							none
 			style							WINDOW_STYLE_SHADER
-			rect							12 228 150 28
+			rect							12 232 150 28
 			background							"gfx/menus/menu_buttonback"
 			forecolor						1 1 1 1
 			visible						1
@@ -292,7 +292,7 @@
 		{
 			name							scoreboard_button
 			text							"Scoreboard"
-			rect							12 228 150 28
+			rect							12 232 150 28
 			type							ITEM_TYPE_BUTTON
 			style							WINDOW_STYLE_FILLED
 			font							2

@@ -23,7 +23,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #pragma once
 
-#define	CGAME_API_VERSION		2
+#define	CGAME_API_VERSION		3
 
 #define	CMD_BACKUP			512//JAPRO - FPS UNLOCK ENGINE
 #define	CMD_MASK			(CMD_BACKUP - 1)
@@ -220,6 +220,7 @@ typedef enum cgameImportLegacy_e {
 	CG_FS_FCLOSEFILE,
 	CG_FS_GETFILELIST,
 	CG_SENDCONSOLECOMMAND,
+	CG_MESSAGE_MODE3,
 	CG_ADDCOMMAND,
 	CG_REMOVECOMMAND,
 	CG_SENDCLIENTCOMMAND,
@@ -504,6 +505,7 @@ typedef struct cgameImport_s {
 	void			(*RemoveCommand)						( const char *cmd_name );
 	void			(*SendClientCommand)					( const char *cmd );
 	void			(*SendConsoleCommand)					( const char *text );
+	void			(*MessageMode3)					( int clientNum );
 
 	// filesystem
 	void			(*FS_Close)								( fileHandle_t f );

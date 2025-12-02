@@ -30,6 +30,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "FXExport.h"
 #include "FxUtil.h"
 
+void Con_StartMessageMode3ForClient(int clientNum);
+
 extern IHeapAllocator *G2VertSpaceClient;
 extern botlib_export_t *botlib_export;
 
@@ -967,13 +969,17 @@ intptr_t CL_CgameSystemCalls( intptr_t *args ) {
 	case CG_FS_GETFILELIST:
 		return FS_GetFileList( (const char *)VMA(1), (const char *)VMA(2), (char *)VMA(3), args[4] );
 
-	case CG_SENDCONSOLECOMMAND:
-		Cbuf_AddText( (const char *)VMA(1) );
-		return 0;
+        case CG_SENDCONSOLECOMMAND:
+                Cbuf_AddText( (const char *)VMA(1) );
+                return 0;
 
-	case CG_ADDCOMMAND:
-		CL_AddCgameCommand( (const char *)VMA(1) );
-		return 0;
+        case CG_MESSAGE_MODE3:
+                Con_StartMessageMode3ForClient(args[1]);
+                return 0;
+
+        case CG_ADDCOMMAND:
+                CL_AddCgameCommand( (const char *)VMA(1) );
+                return 0;
 
 	case CG_REMOVECOMMAND:
 		Cmd_VM_RemoveCommand( (const char *)VMA(1), VM_CGAME );
@@ -1737,6 +1743,7 @@ void CL_BindCGame( void ) {
 		cgi.RemoveCommand						= CGVM_Cmd_RemoveCommand;
 		cgi.SendClientCommand					= CL_AddReliableCommand2;
 		cgi.SendConsoleCommand					= Cbuf_AddText;
+		cgi.MessageMode3						= Con_StartMessageMode3ForClient;
 		cgi.FS_Close							= FS_FCloseFile;
 		cgi.FS_GetFileList						= FS_GetFileList;
 		cgi.FS_Open								= FS_FOpenFileByMode;

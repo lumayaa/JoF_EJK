@@ -106,35 +106,57 @@ void Con_MessageMode2_f (void) {	//team chat
 	Key_SetCatcher( Key_GetCatcher( ) ^ KEYCATCH_MESSAGE );
 }
 
-/*
-================
-Con_MessageMode3_f
-================
-*/
-void Con_MessageMode3_f (void) {	//target chat
+static void CL_OpenPrivateChat(int targetClient, qboolean allowCrosshairFallback) {
+	int resolvedClient = targetClient;
+
 	if (!cls.cgameStarted)
 	{
 		assert(!"null cgvm");
 		return;
 	}
+
 	replying = 0;
-	if (cl.snap.ps.pm_flags & PMF_FOLLOW) { //Send to the person we are spectating instead
-		chat_playerNum = cl.snap.ps.clientNum;
-	}
-	else {
-		chat_playerNum = CGVM_CrosshairPlayer();
+
+	if (resolvedClient < 0 && allowCrosshairFallback) {
+		if (cl.snap.ps.pm_flags & PMF_FOLLOW) { //Send to the person we are spectating instead
+			resolvedClient = cl.snap.ps.clientNum;
+		}
+		else {
+			resolvedClient = CGVM_CrosshairPlayer();
+		}
 	}
 
-	if ( chat_playerNum < 0 || chat_playerNum >= MAX_CLIENTS ) {
+	if ( resolvedClient < 0 || resolvedClient >= MAX_CLIENTS ) {
 		chat_playerNum = -1;
 		return;
 	}
+
+	chat_playerNum = resolvedClient;
 	chat_team = qfalse;
 	Field_Clear( &chatField );
 	chatField.widthInChars = SCREEN_WIDTH / (BIGCHAR_WIDTH * cls.widthRatioCoef) - (24 * cls.widthRatioCoef);
 	Key_SetCatcher( Key_GetCatcher( ) ^ KEYCATCH_MESSAGE );
 }
 
+/*
+================
+Con_MessageMode3_f
+================
+*/
+void Con_MessageMode3_f (void) {        //target chat
+	int argc = Cmd_Argc();
+	int target = -1;
+
+	if (argc > 1) {
+		target = atoi(Cmd_Argv(1));
+	}
+
+	CL_OpenPrivateChat(target, qtrue);
+}
+
+void Con_StartMessageMode3ForClient(int clientNum) {
+	CL_OpenPrivateChat(clientNum, qfalse);
+}
 /*
 ================
 Con_MessageModePlayer_f
