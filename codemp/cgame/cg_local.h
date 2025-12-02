@@ -997,6 +997,14 @@ typedef struct clientCheckpoint_s {
 	qboolean isSet;
 } clientCheckpoint_t;
 
+typedef struct scoreBoardLine_s {
+	int clientNum;
+	float x;
+	float y;
+	float width;
+	float height;
+} scoreBoardLine_t;
+
 typedef struct cg_s {
 	int			clientFrame;		// incremented each frame
 
@@ -1105,6 +1113,16 @@ typedef struct cg_s {
 	score_t			scores[MAX_CLIENTS];
 	qboolean		showScores;
 	qboolean		scoreBoardShowing;
+	qboolean		scoreBoardFromMenu;
+	qboolean		scoreBoardMouseDown;
+	qboolean		scoreBoardContextOpen;
+	int				scoreBoardContextClient;
+	int				scoreBoardHoverClient;
+	int				scoreBoardContextX;
+	int				scoreBoardContextY;
+	int				scoreBoardLineCount;
+	unsigned char	scoreBoardIgnored[MAX_CLIENTS];
+	scoreBoardLine_t	scoreBoardLines[MAX_CLIENTS];
 	int				scoreFadeTime;
 	char			killerName[MAX_NETNAME];
 	char			spectatorList[MAX_STRING_CHARS];		// list of names
@@ -2522,6 +2540,8 @@ void		CG_ParseEntitiesFromString( void );
 //
 qboolean CG_DrawOldScoreboard( void );
 void CG_DrawOldTourneyScoreboard( void );
+void CG_OpenMenuScoreboard( void );
+void CG_CloseMenuScoreboard( void );
 
 //
 // cg_consolecmds.c

@@ -137,6 +137,31 @@ void Con_MessageMode3_f (void) {	//target chat
 
 /*
 ================
+Con_MessageModePlayer_f
+================
+*/
+void Con_MessageModePlayer_f (void) {
+	const char *target = Cmd_Argv(1);
+	int clientNum;
+
+	if (!cls.cgameStarted || !target[0]) {
+		return;
+	}
+
+	clientNum = atoi(target);
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+
+	chat_playerNum = clientNum;
+	chat_team = qfalse;
+	Field_Clear( &chatField );
+	chatField.widthInChars = SCREEN_WIDTH / (BIGCHAR_WIDTH * cls.widthRatioCoef) - (24 * cls.widthRatioCoef);
+	Key_SetCatcher( Key_GetCatcher( ) ^ KEYCATCH_MESSAGE );
+}
+
+/*
+================
 Con_MessageMode4_f
 ================
 */
@@ -589,6 +614,7 @@ void Con_Init (void) {
 	Cmd_AddCommand( "messagemode", Con_MessageMode_f, "Global Chat" );
 	Cmd_AddCommand( "messagemode2", Con_MessageMode2_f, "Team Chat" );
 	Cmd_AddCommand( "messagemode3", Con_MessageMode3_f, "Private Chat with Target Player" );
+	Cmd_AddCommand( "messagemode_player", Con_MessageModePlayer_f, "Private Chat with Selected Player" );
 	Cmd_AddCommand( "messagemode4", Con_MessageMode4_f, "Private Chat with Last Attacker" );
 	Cmd_AddCommand( "messagemode5", Con_MessageMode5_f, "Private Chat with Person who whispered you last" );
 	Cmd_AddCommand( "clear", Con_Clear_f, "Clear console text" );
@@ -652,6 +678,7 @@ void Con_Shutdown(void)
 	Cmd_RemoveCommand("messagemode");
 	Cmd_RemoveCommand("messagemode2");
 	Cmd_RemoveCommand("messagemode3");
+	Cmd_RemoveCommand("messagemode_player");
 	Cmd_RemoveCommand("messagemode4");
 	Cmd_RemoveCommand("clear");
 	Cmd_RemoveCommand("condump");

@@ -195,10 +195,21 @@ CG_ScoresUp_f
 =================
 */
 static void CG_ScoresUp_f( void ) {
+	if (cg.scoreBoardFromMenu) {
+		CG_CloseMenuScoreboard();
+		return;
+	}
+
 	if ( cg.showScores ) {
 		cg.showScores = qfalse;
 		cg.scoreFadeTime = cg.time;
+		cg.scoreBoardFromMenu = qfalse;
+		cg.scoreBoardContextOpen = qfalse;
 	}
+}
+
+static void CG_OpenMenuScoreboard_f( void ) {
+	CG_OpenMenuScoreboard();
 }
 
 void CG_ClientList_f( void )
@@ -2510,6 +2521,7 @@ int cmdcmp( const void *a, const void *b ) {
 static consoleCommand_t	commands[] = {
 	{ "+scores",					CG_ScoresDown_f },
 	{ "-scores",					CG_ScoresUp_f },
+	{ "openmenuscoreboard",			CG_OpenMenuScoreboard_f },
 	{ "briefing",					CG_SiegeBriefing_f },
 	{ "clientlist",					CG_ClientList_f },
 	{ "forcenext",					CG_NextForcePower_f },

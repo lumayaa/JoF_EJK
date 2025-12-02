@@ -836,6 +836,11 @@ void CG_KeyEvent(int key, qboolean down) {
 		return;
 	}
 
+        if (cg.scoreBoardFromMenu && key == A_ESCAPE) {
+                CG_CloseMenuScoreboard();
+                return;
+        }
+
 	if ( cg.predictedPlayerState.pm_type == PM_NORMAL || cg.predictedPlayerState.pm_type == PM_JETPACK || cg.predictedPlayerState.pm_type == PM_NORMAL || (cg.predictedPlayerState.pm_type == PM_SPECTATOR && cg.showScores == qfalse)) {
 		CG_EventHandling(CGAME_EVENT_NONE);
 		trap->Key_SetCatcher(0);

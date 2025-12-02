@@ -74,6 +74,13 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define SB_PING_X			(SB_SCORELINE_X + .70 * SB_SCORELINE_WIDTH)
 #define SB_TIME_X			(SB_SCORELINE_X + .85 * SB_SCORELINE_WIDTH)
 
+typedef struct scoreboardContextRect_s {
+	float x;
+	float y;
+	float w;
+	float h;
+} scoreboardContextRect_t;
+
 // The new and improved score board
 //
 // In cases where the number of clients is high, the score board heads are interleaved
@@ -86,12 +93,167 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 //  wins/losses are drawn on bot icon now
 
 static qboolean localClient; // true if local client has been displayed
+static scoreboardContextRect_t cg_scoreboardContext;
+static scoreboardContextRect_t cg_scoreboardOptions[2];
 
 /*
 =================
 CG_DrawScoreboard
 =================
 */
+static qboolean CG_PointInContextRect(const scoreboardContextRect_t *rect, float x, float y) {
+	return (x >= rect->x && x <= rect->x + rect->w && y >= rect->y && y <= rect->y + rect->h);
+}
+
+static void CG_RecordScoreboardLine(int clientNum, float y, float height) {
+	if (cg.scoreBoardLineCount >= MAX_CLIENTS) {
+		return;
+	}
+
+	cg.scoreBoardLines[cg.scoreBoardLineCount].clientNum = clientNum;
+	cg.scoreBoardLines[cg.scoreBoardLineCount].x = SB_SCORELINE_X - 5;
+	cg.scoreBoardLines[cg.scoreBoardLineCount].y = y + 2;
+	cg.scoreBoardLines[cg.scoreBoardLineCount].width = SCREEN_WIDTH - SB_SCORELINE_X * 2 + 10;
+	cg.scoreBoardLines[cg.scoreBoardLineCount].height = height;
+	cg.scoreBoardLineCount++;
+}
+
+static int CG_ScoreboardClientAt(float x, float y, scoreBoardLine_t *lineOut) {
+	int i;
+	for (i = 0; i < cg.scoreBoardLineCount; i++) {
+		scoreBoardLine_t *line = &cg.scoreBoardLines[i];
+		scoreboardContextRect_t rect = { line->x, line->y, line->width, line->height };
+		if (CG_PointInContextRect(&rect, x, y)) {
+			if (lineOut) {
+				*lineOut = *line;
+			}
+			return line->clientNum;
+		}
+	}
+	return -1;
+}
+
+static void CG_DrawScoreboardCursor(void) {
+	if (!cgs.media.selectCursor) {
+		return;
+	}
+
+	CG_DrawPic(cgs.cursorX - 16, cgs.cursorY - 16, 32, 32, cgs.media.selectCursor);
+}
+
+static void CG_DrawScoreboardContextMenu(float fade) {
+	vec4_t bg = { 0.0f, 0.0f, 0.0f, 0.7f * fade };
+	vec4_t hover = { 1.0f, 1.0f, 1.0f, 0.1f * fade };
+	const float optionHeight = 22.0f;
+	float width = 220.0f;
+	float x = cg.scoreBoardContextX;
+	float y = cg.scoreBoardContextY;
+	float height = optionHeight * 2.0f;
+	int i;
+	int clientNum = cg.scoreBoardContextClient;
+	const char *ignoreLabel;
+
+	if (clientNum < 0) {
+		cg.scoreBoardContextOpen = qfalse;
+		return;
+	}
+	if (x + width > SCREEN_WIDTH) {
+		x = SCREEN_WIDTH - width - 5;
+	}
+	if (y + height > SCREEN_HEIGHT) {
+		y = SCREEN_HEIGHT - height - 5;
+	}
+
+	cg_scoreboardContext.x = x;
+	cg_scoreboardContext.y = y;
+	cg_scoreboardContext.w = width;
+	cg_scoreboardContext.h = height;
+
+	for (i = 0; i < 2; i++) {
+		cg_scoreboardOptions[i].x = x;
+		cg_scoreboardOptions[i].y = y + (i * optionHeight);
+		cg_scoreboardOptions[i].w = width;
+		cg_scoreboardOptions[i].h = optionHeight;
+	}
+
+	CG_FillRect(x, y, width, height, bg);
+	CG_DrawRect(x, y, width, height, 1, colorTable[CT_WHITE]);
+
+	for (i = 0; i < 2; i++) {
+		if (CG_PointInContextRect(&cg_scoreboardOptions[i], cgs.cursorX, cgs.cursorY)) {
+			CG_FillRect(cg_scoreboardOptions[i].x, cg_scoreboardOptions[i].y, cg_scoreboardOptions[i].w, cg_scoreboardOptions[i].h, hover);
+		}
+	}
+
+	CG_Text_Paint(x + 10, y + optionHeight - 6, 0.75f, colorTable[CT_WHITE], "Whisper player", 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE, FONT_MEDIUM);
+	ignoreLabel = cg.scoreBoardIgnored[clientNum] ? "Unignore player" : "Ignore player";
+
+	CG_Text_Paint(x + 10, y + (optionHeight * 2) - 6, 0.75f, colorTable[CT_WHITE], ignoreLabel, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE, FONT_MEDIUM);
+}
+
+static void CG_HandleScoreboardMouse(float fade) {
+        scoreBoardLine_t hoveredLine;
+        int hoveredClient;
+        qboolean mouseDown;
+
+	if (!cg.scoreBoardShowing) {
+		cg.scoreBoardHoverClient = -1;
+		cg.scoreBoardContextOpen = qfalse;
+		return;
+	}
+
+        if (!cg.scoreBoardFromMenu && !(trap->Key_GetCatcher() & (KEYCATCH_UI | KEYCATCH_CGAME))) {
+                cg.scoreBoardHoverClient = -1;
+                return;
+        }
+
+	memset(&hoveredLine, 0, sizeof(hoveredLine));
+	hoveredClient = CG_ScoreboardClientAt(cgs.cursorX, cgs.cursorY, &hoveredLine);
+	cg.scoreBoardHoverClient = hoveredClient;
+
+	if (hoveredClient >= 0) {
+		vec4_t highlight = {1.0f, 1.0f, 1.0f, 0.08f * fade};
+		CG_FillRect(hoveredLine.x, hoveredLine.y, hoveredLine.width, hoveredLine.height, highlight);
+	}
+
+        mouseDown = trap->Key_IsDown(A_MOUSE1);
+        if (mouseDown && !cg.scoreBoardMouseDown) {
+                if (cg.scoreBoardContextOpen) {
+                        if (CG_PointInContextRect(&cg_scoreboardOptions[0], cgs.cursorX, cgs.cursorY)) {
+				CG_CloseMenuScoreboard();
+				trap->SendConsoleCommand(va("messagemode_player %i\n", cg.scoreBoardContextClient));
+				return;
+			}
+
+			if (CG_PointInContextRect(&cg_scoreboardOptions[1], cgs.cursorX, cgs.cursorY)) {
+				trap->SendClientCommand(va("ignore %i", cg.scoreBoardContextClient));
+				cg.scoreBoardIgnored[cg.scoreBoardContextClient] = !cg.scoreBoardIgnored[cg.scoreBoardContextClient];
+				cg.scoreBoardContextOpen = qfalse;
+				return;
+			}
+			if (!CG_PointInContextRect(&cg_scoreboardContext, cgs.cursorX, cgs.cursorY)) {
+				cg.scoreBoardContextOpen = qfalse;
+			}
+		}
+		else if (hoveredClient >= 0) {
+			cg.scoreBoardContextClient = hoveredClient;
+			cg.scoreBoardContextX = cgs.cursorX;
+			cg.scoreBoardContextY = cgs.cursorY;
+			cg.scoreBoardContextOpen = qtrue;
+		}
+	}
+
+        cg.scoreBoardMouseDown = mouseDown;
+
+	if (cg.scoreBoardContextOpen) {
+		CG_DrawScoreboardContextMenu(fade);
+	}
+
+	if (cg.scoreBoardFromMenu) {
+		CG_DrawScoreboardCursor();
+	}
+}
+
 static void CG_DrawClientScore( int y, score_t *score, float *color, float fade, qboolean largeFormat )
 {
 	//vec3_t	headAngles;
@@ -106,6 +268,8 @@ static void CG_DrawClientScore( int y, score_t *score, float *color, float fade,
 	}
 
 	ci = &cgs.clientinfo[score->client];
+
+	CG_RecordScoreboardLine(score->client, y, iconSize);
 
 	// draw the handicap or bot skill marker (unless player has flag)
 	if ( ci->powerups & (1<<PW_NEUTRALFLAG) )
@@ -284,6 +448,8 @@ static void CG_DrawClientScore2( int y, score_t *score, float *color, float fade
 	}
 
 	ci = &cgs.clientinfo[score->client];
+
+	CG_RecordScoreboardLine(score->client, y, SB_INTER_HEIGHT_NEW + 2);
 
 	// draw the handicap or bot skill marker (unless player has flag)
 	if ( ci->powerups & (1<<PW_NEUTRALFLAG) )
@@ -731,6 +897,12 @@ qboolean CG_DrawOldScoreboard( void ) {
 	int maxClients, realMaxClients;
 	int lineHeight;
 	int topBorderSize, bottomBorderSize;
+
+	cg.scoreBoardLineCount = 0;
+
+	if (!cg.showScores && cg.scoreBoardFromMenu) {
+		CG_CloseMenuScoreboard();
+	}
 
 	// don't draw amuthing if the menu or console is up
 	if ( cl_paused.integer ) {
@@ -1193,8 +1365,53 @@ qboolean CG_DrawOldScoreboard( void ) {
 		CG_LoadDeferredPlayers();
 	}
 
+	CG_HandleScoreboardMouse(fade);
+
 	return qtrue;
 }
 
 //================================================================================
+
+void CG_OpenMenuScoreboard(void) {
+        int catcher;
+
+	cg.scoreBoardFromMenu = qtrue;
+	cg.scoreBoardContextOpen = qfalse;
+        cg.scoreBoardMouseDown = trap->Key_IsDown(A_MOUSE1);
+        cg.scoreBoardContextClient = -1;
+        cg.scoreBoardHoverClient = -1;
+        cg.scoreBoardLineCount = 0;
+
+        catcher = trap->Key_GetCatcher();
+        cgs.cursorX = 320;
+        cgs.cursorY = 240;
+        catcher &= ~KEYCATCH_UI;
+        trap->Key_SetCatcher(catcher | KEYCATCH_CGAME);
+        CG_EventHandling(CGAME_EVENT_SCOREBOARD);
+
+	if (!cg.demoPlayback && cg.scoresRequestTime + 2000 < cg.time) {
+		cg.scoresRequestTime = cg.time;
+		trap->SendClientCommand("score");
+		cg.numScores = 0;
+	}
+
+	cg.showScores = qtrue;
+}
+
+void CG_CloseMenuScoreboard(void) {
+        int catcher = trap->Key_GetCatcher();
+
+	cg.showScores = qfalse;
+	cg.scoreBoardFromMenu = qfalse;
+	cg.scoreBoardContextOpen = qfalse;
+	cg.scoreBoardHoverClient = -1;
+	cg.scoreBoardContextClient = -1;
+	cg.scoreBoardMouseDown = qfalse;
+	cg.scoreFadeTime = cg.time;
+
+        catcher &= ~KEYCATCH_CGAME;
+        trap->Key_SetCatcher(catcher);
+        CG_EventHandling(CGAME_EVENT_NONE);
+}
+
 
