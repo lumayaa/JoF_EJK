@@ -27,6 +27,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "server/sv_gameapi.h"
 #include "qcommon/game_version.h"
 
+
 /*
 ===============================================================================
 
@@ -2375,6 +2376,199 @@ static void SV_CompleteMapName( char *args, int argNum ) {
 		Field_CompleteFilename( "maps", "bsp", qtrue, qfalse );
 }
 
+
+typedef struct svShaderRemap_s
+{
+	char oldShader[MAX_QPATH];
+	char newShader[MAX_QPATH];
+} svShaderRemap_t;
+
+#define MAX_SV_SHADER_REMAPS 128
+
+static int svRemapCount = 0;
+static svShaderRemap_t svRemappedShaders[MAX_SV_SHADER_REMAPS];
+
+static void SV_AddShaderRemap(const char* oldShader, const char* newShader)
+{
+	int i;
+
+	for (i = 0; i < svRemapCount; i++)
+	{
+		if (Q_stricmp(oldShader, svRemappedShaders[i].oldShader) == 0)
+		{
+			// found it, just update this one
+			Q_strncpyz(svRemappedShaders[i].newShader, newShader, MAX_QPATH);
+			return;
+		}
+	}
+
+	if (svRemapCount < MAX_SV_SHADER_REMAPS)
+	{
+		Q_strncpyz(svRemappedShaders[svRemapCount].oldShader, oldShader, MAX_QPATH);
+		Q_strncpyz(svRemappedShaders[svRemapCount].newShader, newShader, MAX_QPATH);
+		svRemapCount++;
+	}
+}
+
+static void SV_RemoveShaderRemap(const char* oldShader)
+{
+	int i;
+
+	for (i = 0; i < svRemapCount; i++)
+	{
+		if (Q_stricmp(oldShader, svRemappedShaders[i].oldShader) == 0)
+		{
+			// found it, remove by shifting remaining entries
+			for (int j = i; j < svRemapCount - 1; j++)
+			{
+				svRemappedShaders[j] = svRemappedShaders[j + 1];
+			}
+			svRemapCount--;
+			return;
+		}
+	}
+}
+
+static const char* SV_BuildShaderStateConfig(void)
+{
+	static char buff[MAX_STRING_CHARS * 4];
+	char out[(MAX_QPATH * 2) + 16];
+	int i;
+
+	memset(buff, 0, sizeof(buff));
+	for (i = 0; i < svRemapCount; i++)
+	{
+		Com_sprintf(out, sizeof(out), "%s=%s:%5.2f@",
+		            svRemappedShaders[i].oldShader,
+		            svRemappedShaders[i].newShader,
+		            Q_strcat(buff, sizeof(buff), out);
+	}
+	return buff;
+}
+
+void SV_ClearShaderRemaps(void)
+{
+	svRemapCount = 0;
+}
+
+static void SV_RemapShader_f(void)
+{
+	char oldShader[MAX_QPATH];
+	char newShader[MAX_QPATH];
+
+	if (!com_sv_running->integer)
+	{
+		Com_Printf("Server is not running.\n");
+		return;
+	}
+
+	if (Cmd_Argc() < 3)
+	{
+		Com_Printf("Usage: sv_remap <oldShader> <newShader>\n");
+		return;
+	}
+
+	Q_strncpyz(oldShader, Cmd_Argv(1), sizeof(oldShader));
+	Q_strncpyz(newShader, Cmd_Argv(2), sizeof(newShader));
+
+	SV_AddShaderRemap(oldShader, newShader);
+	SV_SetConfigstring(CS_SHADERSTATE, SV_BuildShaderStateConfig());
+
+	Com_Printf("Remapped: %s -> %s\n", oldShader, newShader);
+}
+
+static void SV_UnRemapShader_f()
+{
+	if (!com_sv_running->integer)
+	{
+		Com_Printf("Server is not running.\n");
+		return;
+	}
+	if (Cmd_Argc() < 2)
+	{
+		Com_Printf("Usage: sv_unremap <oldShader>\n");
+		return;
+	}
+
+	SV_RemoveShaderRemap(Cmd_Argv(1));
+	SV_SetConfigstring(CS_SHADERSTATE, SV_BuildShaderStateConfig());
+	Com_Printf("Removed remap for: %s\n", Cmd_Argv(1));
+}
+
+static void SV_ListRemaps_f()
+{
+	if (!com_sv_running->integer)
+	{
+		Com_Printf("Server is not running.\n");
+		return;
+	}
+	if (svRemapCount == 0)
+	{
+		Com_Printf("No shader remaps active.\n");
+		return;
+	}
+	Com_Printf("Active remaps (%d):\n", svRemapCount);
+	for (int i = 0; i < svRemapCount; i++)
+	{
+		Com_Printf("  %s -> %s (%.2f)\n",
+		           svRemappedShaders[i].oldShader,
+		           svRemappedShaders[i].newShader);
+	}
+}
+
+static void SV_ClearRemaps_f(void)
+{
+	if (!com_sv_running->integer)
+	{
+		Com_Printf("Server is not running.\n");
+		return;
+	}
+	SV_ClearShaderRemaps();
+	SV_SetConfigstring(CS_SHADERSTATE, "");
+	Com_Printf("All shader remaps cleared.\n");
+}
+
+
+static void SV_PlayMusic_f()
+{
+	char musicString[MAX_QPATH * 2];
+
+	if (!com_sv_running->integer)
+	{
+		Com_Printf("Server is not running.\n");
+		return;
+	}
+
+	if (Cmd_Argc() < 2)
+	{
+		Com_Printf("Usage: sv_music <musicfile>\n");
+		return;
+	}
+
+	Com_sprintf(musicString, sizeof(musicString), "%s", Cmd_Argv(1));
+
+
+	SV_SetConfigstring(CS_MUSIC, musicString);
+	Com_Printf("Playing music: %s\n", Cmd_Argv(1));
+}
+
+static void SV_StopMusic_f()
+{
+	if (!com_sv_running->integer)
+	{
+		Com_Printf("Server is not running.\n");
+		return;
+	}
+
+	SV_SetConfigstring(CS_MUSIC, "");
+	Com_Printf("Music stopped.\n");
+}
+
+
+
+
+
+
 /*
 ==================
 SV_AddOperatorCommands
@@ -2427,6 +2621,16 @@ void SV_AddOperatorCommands( void ) {
 	Cmd_AddCommand ("sv_exceptdel", SV_ExceptDel_f, "Removes a ban exception" );
 	Cmd_AddCommand ("sv_flushbans", SV_FlushBans_f, "Removes all bans and exceptions" );
 	Cmd_AddCommand ("whitelistip", SV_WhitelistIP_f, "Add IP to the whitelist" );
+	// lumaya:
+	Cmd_AddCommand ("sv_remap", SV_RemapShader_f, "Remap a shader: sv_remap <old> <new>" );
+	Cmd_AddCommand ("sv_unremap", SV_UnRemapShader_f, "Remove a shader remap: sv_unremap <old>" );
+	Cmd_AddCommand ("sv_listremaps", SV_ListRemaps_f, "List all active shader remaps" );
+	Cmd_AddCommand ("sv_clearremaps", SV_ClearRemaps_f, "Clear all shader remaps" );
+	Cmd_AddCommand ("sv_music", SV_PlayMusic_f, "Play music on all clients: sv_music <file>" );
+	Cmd_AddCommand ("sv_stopmusic", SV_StopMusic_f, "Stop music on all clients" );
+
+
+
 }
 
 /*
