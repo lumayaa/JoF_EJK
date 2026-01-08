@@ -2531,6 +2531,7 @@ static void SV_ClearRemaps_f(void)
 
 static char svOldMusic[MAX_QPATH * 2];
 static int svMusicRestoreTime = 0;
+static qboolean svOldMusicSet = qfalse;
 
 static void SV_PlayMusic_f()
 {
@@ -2559,7 +2560,11 @@ static void SV_PlayMusic_f()
 		duration = atoi(Cmd_Argv(2));
 		if (duration > 0)
 		{
-			Q_strncpyz(svOldMusic, currentMusic, sizeof(svOldMusic));
+			if (!svOldMusicSet)
+			{
+				Q_strncpyz(svOldMusic, currentMusic, sizeof(svOldMusic));
+				svOldMusicSet = qtrue;
+			}
 			svMusicRestoreTime = svs.time + (duration * 1000);
 			Com_Printf("Playing music: %s for %d seconds\n", Cmd_Argv(1), duration);
 		}
@@ -2583,7 +2588,12 @@ void SV_CheckMusicRestore()
 	}
 }
 
-
+void SV_ResetMusicState()
+{
+	svOldMusic[0] = '\0';
+	svMusicRestoreTime = 0;
+	svOldMusicSet = qfalse;
+}
 
 static void SV_StopMusic_f()
 {
@@ -2593,8 +2603,8 @@ static void SV_StopMusic_f()
 		return;
 	}
 
-	SV_SetConfigstring(CS_MUSIC, "");
-	Com_Printf("Music stopped.\n");
+	SV_SetConfigstring(CS_MUSIC, svOldMusic);
+	Com_Printf("Music returned to default.\n");
 }
 
 

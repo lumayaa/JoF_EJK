@@ -456,6 +456,8 @@ void SV_SpawnServer( char *server, qboolean killBots, ForceReload_e eForceReload
 	const char	*p;
 
 	SV_StopAutoRecordDemos();
+	SV_ResetMusicState();
+	SV_ClearShaderRemaps();
 
 	SV_SendMapChange();
 

@@ -1303,6 +1303,9 @@ void SV_Frame( int msec ) {
 
 	SV_CheckCvars();
 
+	// check if music needs to be restored
+	SV_CheckMusicRestore();
+
 	// send a heartbeat to the master if needed
 	SV_MasterHeartbeat();
 }
