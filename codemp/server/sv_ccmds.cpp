@@ -2438,10 +2438,11 @@ static const char* SV_BuildShaderStateConfig(void)
 	memset(buff, 0, sizeof(buff));
 	for (i = 0; i < svRemapCount; i++)
 	{
-		Com_sprintf(out, sizeof(out), "%s=%s:%5.2f@",
-		            svRemappedShaders[i].oldShader,
-		            svRemappedShaders[i].newShader,
-		            Q_strcat(buff, sizeof(buff), out);
+		Com_sprintf(out, sizeof(out), "%s=%s@",
+			svRemappedShaders[i].oldShader,
+			svRemappedShaders[i].newShader);
+		Q_strcat(buff, sizeof(buff), out);
+
 	}
 	return buff;
 }
