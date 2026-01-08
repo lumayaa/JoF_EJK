@@ -2528,10 +2528,14 @@ static void SV_ClearRemaps_f(void)
 	Com_Printf("All shader remaps cleared.\n");
 }
 
+static char svOldMusic[MAX_QPATH * 2];
+static int svMusicRestoreTime = 0;
 
 static void SV_PlayMusic_f()
 {
 	char musicString[MAX_QPATH * 2];
+	char currentMusic[MAX_QPATH * 2];
+	int duration;
 
 	if (!com_sv_running->integer)
 	{
@@ -2541,16 +2545,44 @@ static void SV_PlayMusic_f()
 
 	if (Cmd_Argc() < 2)
 	{
-		Com_Printf("Usage: sv_music <musicfile>\n");
+		Com_Printf("Usage: sv_music <musicfile> [duration_seconds]\n");
 		return;
 	}
+	
+	SV_GetConfigstring(CS_MUSIC, currentMusic, sizeof(currentMusic));
 
 	Com_sprintf(musicString, sizeof(musicString), "%s", Cmd_Argv(1));
-
+	
+	if (Cmd_Argc() >= 3)
+	{
+		duration = atoi(Cmd_Argv(2));
+		if (duration > 0)
+		{
+			Q_strncpyz(svOldMusic, currentMusic, sizeof(svOldMusic));
+			svMusicRestoreTime = svs.time + (duration * 1000);
+			Com_Printf("Playing music: %s for %d seconds\n", Cmd_Argv(1), duration);
+		}
+	}
+	else
+	{
+		svMusicRestoreTime = 0;
+		Com_Printf("Playing music: %s\n", Cmd_Argv(1));
+	}
 
 	SV_SetConfigstring(CS_MUSIC, musicString);
-	Com_Printf("Playing music: %s\n", Cmd_Argv(1));
 }
+
+void SV_CheckMusicRestore()
+{
+	if (svMusicRestoreTime && svs.time >= svMusicRestoreTime)
+	{
+		SV_SetConfigstring(CS_MUSIC, svOldMusic);
+		Com_Printf("Music restored to: %s\n", svOldMusic[0] ? svOldMusic : "(none)");
+		svMusicRestoreTime = 0;
+	}
+}
+
+
 
 static void SV_StopMusic_f()
 {
@@ -2563,9 +2595,6 @@ static void SV_StopMusic_f()
 	SV_SetConfigstring(CS_MUSIC, "");
 	Com_Printf("Music stopped.\n");
 }
-
-
-
 
 
 
@@ -2621,7 +2650,7 @@ void SV_AddOperatorCommands( void ) {
 	Cmd_AddCommand ("sv_exceptdel", SV_ExceptDel_f, "Removes a ban exception" );
 	Cmd_AddCommand ("sv_flushbans", SV_FlushBans_f, "Removes all bans and exceptions" );
 	Cmd_AddCommand ("whitelistip", SV_WhitelistIP_f, "Add IP to the whitelist" );
-	// lumaya:
+	// lumaya:do 
 	Cmd_AddCommand ("sv_remap", SV_RemapShader_f, "Remap a shader: sv_remap <old> <new>" );
 	Cmd_AddCommand ("sv_unremap", SV_UnRemapShader_f, "Remove a shader remap: sv_unremap <old>" );
 	Cmd_AddCommand ("sv_listremaps", SV_ListRemaps_f, "List all active shader remaps" );
