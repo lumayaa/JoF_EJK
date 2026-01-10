@@ -573,6 +573,23 @@ static void SV_AddEntitiesVisibleFromPoint( vec3_t origin, clientSnapshot_t *fra
 	}
 }
 
+qboolean stuckWith[MAX_CLIENTS][MAX_CLIENTS];
+
+static qboolean shouldBeSolidForViewer(sharedEntity_t* ent, sharedEntity_t* viewer)
+{
+	if (!ent || !viewer || ent == viewer || !ent->playerState || !viewer->playerState)
+		return qtrue;
+	
+	if (ent->s.number < 0 || ent->s.number >= MAX_CLIENTS || 
+		viewer->s.number < 0 || viewer->s.number >= MAX_CLIENTS)
+		return qtrue;
+
+	if (stuckWith[ent->s.number][viewer->s.number] || stuckWith[viewer->s.number][ent->s.number])
+		return qfalse;
+	
+	return qtrue;
+}
+
 /*
 =============
 SV_BuildClientSnapshot
@@ -680,6 +697,12 @@ static void SV_BuildClientSnapshot( client_t *client ) {
 	for ( i = 0 ; i < entityNumbers.numSnapshotEntities ; i++ ) {
 		ent = SV_GentityNum(entityNumbers.snapshotEntities[i]);
 		state = &svs.snapshotEntities[svs.nextSnapshotEntities % svs.numSnapshotEntities];
+
+		if (ent && client && client->gentity)
+		{
+			if (!shouldBeSolidForViewer(ent, client->gentity)) ent->s.solid = 0;
+		}
+		
 		*state = ent->s;
 #ifdef DEDICATED
 		if (!client->jpPlugin && DuelCull(client->gentity, ent)) {

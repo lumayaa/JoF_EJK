@@ -148,12 +148,21 @@ SV_ClearWorld
 
 ===============
 */
+
+extern qboolean stuckWith[MAX_CLIENTS][MAX_CLIENTS];
+static unsigned int spawnTime[MAX_CLIENTS];
+int oldRespawnCount[MAX_CLIENTS];
+
 void SV_ClearWorld( void ) {
 	clipHandle_t	h;
 	vec3_t			mins, maxs;
 
 	Com_Memset( sv_worldSectors, 0, sizeof(sv_worldSectors) );
 	sv_numworldSectors = 0;
+
+	Com_Memset( stuckWith, 0, sizeof(stuckWith) );
+	Com_Memset( spawnTime, 0, sizeof(spawnTime) );
+	Com_Memset( oldRespawnCount, 0, sizeof(oldRespawnCount) );
 
 	// get world map bounds
 	h = CM_InlineModel( 0 );
@@ -518,6 +527,66 @@ void SV_ClipToEntity( trace_t *trace, const vec3_t start, const vec3_t mins, con
 	}
 }
 
+#define SPAWN_GRACE_TRACE_PERIOD 500
+#define TELEPORT_GRACE_TRACE_PERIOD 500
+
+static qboolean canWeCollide(const sharedEntity_t* passEnt, const sharedEntity_t* touch)
+{
+	if (!passEnt || !passEnt->playerState || !touch || !touch->playerState)
+		return qtrue;
+
+	const int passNum = passEnt->s.number;
+	const int touchNum = touch->s.number;
+
+	if (passNum < 0 || touchNum < 0)
+		return qtrue;
+
+	const int currentRespawnCount = passEnt->playerState->persistant[PERS_SPAWN_COUNT];
+
+	if (currentRespawnCount != oldRespawnCount[passNum] ||
+		passEnt->playerState->eFlags & EF_TELEPORT_BIT)
+	{
+		oldRespawnCount[passNum] = currentRespawnCount;
+		spawnTime[passNum] = sv.time + SPAWN_GRACE_TRACE_PERIOD;
+	}
+
+	if (passEnt->playerState->duelInProgress)
+		if (passEnt->playerState->duelIndex != touchNum)
+			return qfalse;
+
+	if (touch->playerState->duelInProgress)
+		if (touch->playerState->duelIndex != passNum)
+			return qfalse;
+
+	if (stuckWith[passNum][touchNum] || stuckWith[touchNum][passNum] || spawnTime[passNum] > sv.time)
+	{
+		if (passEnt->r.linked && touch->r.linked &&
+
+			passEnt != touch)
+		{
+			trace_t tr;
+			clipHandle_t handle = SV_ClipHandleForEntity(touch);
+
+			CM_TransformedBoxTrace(&tr,
+				passEnt->r.currentOrigin, passEnt->r.currentOrigin,
+				passEnt->r.mins, passEnt->r.maxs,
+				handle, CONTENTS_BODY,
+				touch->r.currentOrigin, vec3_origin,
+				qfalse);
+
+			if (tr.startsolid)
+			{
+				stuckWith[passNum][touchNum] = qtrue;
+				return qfalse;
+			}
+
+			stuckWith[passNum][touchNum] = qfalse;
+		}
+	}
+
+	return qtrue;
+}
+
 
 /*
 ====================
@@ -597,6 +666,11 @@ static void SV_ClipMoveToEntities( moveclip_t *clip ) {
 				touch->r.ownerNum == passOwnerNum)
 			{ //blah, hack
 				continue;
+			}
+
+			if (clip->passEntityNum != ENTITYNUM_NONE && SV_GentityNum(clip->passEntityNum))
+			{
+				if (!canWeCollide(SV_GentityNum(clip->passEntityNum), touch)) continue;
 			}
 		}
 

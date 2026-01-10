@@ -372,6 +372,9 @@ gotnewcl:
 	}
 }
 
+extern qboolean stuckWith[MAX_CLIENTS][MAX_CLIENTS];
+extern int oldRespawnCount[MAX_CLIENTS];
+
 
 /*
 =====================
@@ -385,6 +388,13 @@ or crashing -- SV_FinalMessage() will handle that
 void SV_DropClient( client_t *drop, const char *reason ) {
 	int		i;
 	const bool isBot = drop->netchan.remoteAddress.type == NA_BOT;
+
+	oldRespawnCount[drop - svs.clients] = 0;
+	for (i = 0 ; i < MAX_CLIENTS ; i++ )
+	{
+		stuckWith[drop - svs.clients][i] = qfalse;
+		stuckWith[i][drop - svs.clients] = qfalse;
+	}
 
 	if ( drop->state == CS_ZOMBIE ) {
 		return;		// already dropped
