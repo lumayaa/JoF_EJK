@@ -372,8 +372,8 @@ gotnewcl:
 	}
 }
 
-extern qboolean stuckWith[MAX_CLIENTS][MAX_CLIENTS];
-extern int oldRespawnCount[MAX_CLIENTS];
+extern qboolean stuckWith[MAX_GENTITIES][MAX_GENTITIES];
+extern int oldRespawnCount[MAX_GENTITIES];
 
 
 /*

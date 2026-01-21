@@ -573,20 +573,20 @@ static void SV_AddEntitiesVisibleFromPoint( vec3_t origin, clientSnapshot_t *fra
 	}
 }
 
-qboolean stuckWith[MAX_CLIENTS][MAX_CLIENTS];
+qboolean stuckWith[MAX_GENTITIES][MAX_GENTITIES];
 
 static qboolean shouldBeSolidForViewer(sharedEntity_t* ent, sharedEntity_t* viewer)
 {
-	if (!ent || !viewer || ent == viewer || !ent->playerState || !viewer->playerState)
+	if (!ent || !viewer || ent == viewer || !ent->playerState)
 		return qtrue;
-	
-	if (ent->s.number < 0 || ent->s.number >= MAX_CLIENTS || 
-		viewer->s.number < 0 || viewer->s.number >= MAX_CLIENTS)
+
+	if (ent->s.number < 0 || ent->s.number >= MAX_GENTITIES ||
+		viewer->s.number < 0 || viewer->s.number >= MAX_GENTITIES)
 		return qtrue;
 
 	if (stuckWith[ent->s.number][viewer->s.number] || stuckWith[viewer->s.number][ent->s.number])
 		return qfalse;
-	
+
 	return qtrue;
 }
 

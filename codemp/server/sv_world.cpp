@@ -149,9 +149,9 @@ SV_ClearWorld
 ===============
 */
 
-extern qboolean stuckWith[MAX_CLIENTS][MAX_CLIENTS];
-static unsigned int spawnTime[MAX_CLIENTS];
-int oldRespawnCount[MAX_CLIENTS];
+extern qboolean stuckWith[MAX_GENTITIES][MAX_GENTITIES];
+static unsigned int spawnTime[MAX_GENTITIES];
+int oldRespawnCount[MAX_GENTITIES];
 
 void SV_ClearWorld( void ) {
 	clipHandle_t	h;
@@ -532,13 +532,20 @@ void SV_ClipToEntity( trace_t *trace, const vec3_t start, const vec3_t mins, con
 
 static qboolean canWeCollide(const sharedEntity_t* passEnt, const sharedEntity_t* touch)
 {
-	if (!passEnt || !passEnt->playerState || !touch || !touch->playerState)
+	if (!passEnt
+		|| !passEnt->playerState
+		|| !touch)
 		return qtrue;
 
+	if (touch->s.eType != ET_NPC
+		&& touch->s.eType != ET_PLAYER
+		&& touch->s.NPC_class != CLASS_VEHICLE)
+		return qtrue;
+	
 	const int passNum = passEnt->s.number;
 	const int touchNum = touch->s.number;
 
-	if (passNum < 0 || touchNum < 0)
+	if (passNum < 0 || passNum >= MAX_GENTITIES || touchNum < 0 || touchNum >= MAX_GENTITIES)
 		return qtrue;
 
 	const int currentRespawnCount = passEnt->playerState->persistant[PERS_SPAWN_COUNT];
@@ -548,15 +555,11 @@ static qboolean canWeCollide(const sharedEntity_t* passEnt, const sharedEntity_t
 	{
 		oldRespawnCount[passNum] = currentRespawnCount;
 		spawnTime[passNum] = sv.time + SPAWN_GRACE_TRACE_PERIOD;
+		for (int i = 0; i < MAX_GENTITIES; i++) {
+			stuckWith[passNum][i] = qfalse;
+			stuckWith[i][passNum] = qfalse;
+		}
 	}
-
-	if (passEnt->playerState->duelInProgress)
-		if (passEnt->playerState->duelIndex != touchNum)
-			return qfalse;
-
-	if (touch->playerState->duelInProgress)
-		if (touch->playerState->duelIndex != passNum)
-			return qfalse;
 
 	if (stuckWith[passNum][touchNum] || stuckWith[touchNum][passNum] || spawnTime[passNum] > sv.time)
 	{
