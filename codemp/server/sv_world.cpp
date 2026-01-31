@@ -528,43 +528,48 @@ void SV_ClipToEntity( trace_t *trace, const vec3_t start, const vec3_t mins, con
 }
 
 #define SPAWN_GRACE_TRACE_PERIOD 500
-#define TELEPORT_GRACE_TRACE_PERIOD 500
 
 static qboolean canWeCollide(const sharedEntity_t* passEnt, const sharedEntity_t* touch)
 {
-	if (!passEnt
-		|| !passEnt->playerState
-		|| !touch)
+	if (!passEnt || !touch)
+		return qtrue;
+
+	const bool passIsNPCOrVehicle = (passEnt->s.eType == ET_NPC || passEnt->s.NPC_class == CLASS_VEHICLE);
+	const bool touchIsNPCOrVehicle = (touch->s.eType == ET_NPC || touch->s.NPC_class == CLASS_VEHICLE);
+	
+	if (!passEnt->playerState && !passIsNPCOrVehicle)
 		return qtrue;
 
 	if (touch->s.eType != ET_NPC
 		&& touch->s.eType != ET_PLAYER
 		&& touch->s.NPC_class != CLASS_VEHICLE)
 		return qtrue;
-	
+
 	const int passNum = passEnt->s.number;
 	const int touchNum = touch->s.number;
 
 	if (passNum < 0 || passNum >= MAX_GENTITIES || touchNum < 0 || touchNum >= MAX_GENTITIES)
 		return qtrue;
-
-	const int currentRespawnCount = passEnt->playerState->persistant[PERS_SPAWN_COUNT];
-
-	if (currentRespawnCount != oldRespawnCount[passNum] ||
-		passEnt->playerState->eFlags & EF_TELEPORT_BIT)
+	
+	if (passEnt->playerState)
 	{
-		oldRespawnCount[passNum] = currentRespawnCount;
-		spawnTime[passNum] = sv.time + SPAWN_GRACE_TRACE_PERIOD;
-		for (int i = 0; i < MAX_GENTITIES; i++) {
-			stuckWith[passNum][i] = qfalse;
-			stuckWith[i][passNum] = qfalse;
+		const int currentRespawnCount = passEnt->playerState->persistant[PERS_SPAWN_COUNT];
+
+		if (currentRespawnCount != oldRespawnCount[passNum] ||
+			passEnt->playerState->eFlags & EF_TELEPORT_BIT)
+		{
+			oldRespawnCount[passNum] = currentRespawnCount;
+			spawnTime[passNum] = sv.time + SPAWN_GRACE_TRACE_PERIOD;
+			for (int i = 0; i < MAX_GENTITIES; i++) {
+				stuckWith[passNum][i] = qfalse;
+				stuckWith[i][passNum] = qfalse;
+			}
 		}
 	}
 
-	if (stuckWith[passNum][touchNum] || stuckWith[touchNum][passNum] || spawnTime[passNum] > sv.time)
+	if (stuckWith[passNum][touchNum] || stuckWith[touchNum][passNum] || spawnTime[passNum] > sv.time || spawnTime[touchNum] > sv.time || touchIsNPCOrVehicle || passIsNPCOrVehicle)
 	{
 		if (passEnt->r.linked && touch->r.linked &&
-
 			passEnt != touch)
 		{
 			trace_t tr;
