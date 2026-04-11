@@ -443,9 +443,21 @@ typedef struct console_s {
 	vec4_t	color;
 } console_t;
 
+typedef enum {
+	CON_MESSAGE_MISC,
+	CON_MESSAGE_SAY,
+	CON_MESSAGE_SAY_TEAM,
+	CON_MESSAGE_WHISPER
+} consoleMessageType_t;
+
 extern	clientStatic_t		cls;
 
 extern	refexport_t		*re;		// interface to refresh .dll
+
+void Con_SetNextMessageContext( consoleMessageType_t type, int whisperClientNum, const char *whisperName );
+void Con_TrackOutgoingWhisperTarget( int clientNum );
+void Con_TrackOutgoingWhisperCommand( const char *command );
+qboolean Con_HandleMouseClick( int key );
 
 //
 // cvars
@@ -643,6 +655,7 @@ void Con_PageUp( void );
 void Con_PageDown( void );
 void Con_Top( void );
 void Con_Bottom( void );
+void Con_CycleTab( void );
 void Con_Close( void );
 
 void Con_SetFrac(const float conFrac);
@@ -674,6 +687,7 @@ void	SCR_DrawStringExt2(float x, float y, float charWidth, float charHeight, con
 void	SCR_DrawBigStringColor( int x, int y, const char *s, vec4_t color, qboolean noColorEscape );	// ignores embedded color control characters
 void	SCR_DrawSmallStringExt( int x, int y, const char *string, float *setColor, qboolean forceColor, qboolean noColorEscape );
 void	SCR_DrawSmallChar( int x, int y, int ch );
+void	SCR_AdjustFrom640( float *x, float *y, float *w, float *h );
 
 
 //

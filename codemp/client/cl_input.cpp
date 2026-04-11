@@ -1079,8 +1079,8 @@ void CL_MouseEvent(int dx, int dy, int time) {
 		g_clAutoMapInput.yaw = 0.0f;
 		g_clAutoMapInput.pitch = 0.0f;
 	}
-	else if (Key_GetCatcher() & KEYCATCH_UI) {
-		UIVM_MouseEvent(dx, dy);
+	else if ( cls.uiStarted && ( Key_GetCatcher() & ( KEYCATCH_UI | KEYCATCH_CONSOLE ) ) ) {
+		UIVM_MouseEvent( dx, dy );
 	}
 	else if (Key_GetCatcher() & KEYCATCH_CGAME) {
 		CGVM_MouseEvent(dx, dy);
@@ -1864,7 +1864,7 @@ void CL_CreateNewCommands( void ) {
 		return;
 
 	// cl_cmdratecap: when enabled, cap command generation at 125Hz.
-	// Uses fixed-step accumulator — advance by CMDRATECAP_MSEC on fire,
+	// Uses fixed-step accumulator â€” advance by CMDRATECAP_MSEC on fire,
 	// carrying overshoot forward so cmds land at steady 8ms intervals.
 	// Button wasPressed and gcmdValue persist across skipped frames naturally.
 	if (cl_cmdratecap->integer) {

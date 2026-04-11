@@ -408,6 +408,7 @@ typedef struct uiExport_s {
 	void		(*DrawConnectScreen)	( qboolean overlay );
 	void		(*MenuReset)			( void );
 	void		(*CvarHelp)				(const char *cvarName, qboolean enter, char *helpBuffer, size_t helpBufferSize);
+	void		(*GetCursorPos)			( float *x, float *y );
 } uiExport_t;
 
 //linking of ui library

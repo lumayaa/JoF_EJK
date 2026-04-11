@@ -753,6 +753,7 @@ typedef struct cgameExport_s {
 	void			(*MiscEnt)					( void );
 	void			(*CameraShake)				( void );
 	int				(*LastWhisperer)			( void );
+	qboolean		(*GetChatBoxAnchor)		( float *x, float *y );
 
 } cgameExport_t;
 

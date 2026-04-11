@@ -23,6 +23,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 void		UIVM_Init				( qboolean inGameLoad );
 void		UIVM_Shutdown			( void );
 void		UIVM_KeyEvent			( int key, qboolean down );
+void		UIVM_GetCursorPos			( float *x, float *y );
 void		UIVM_MouseEvent			( int dx, int dy );
 void		UIVM_Refresh			( int realtime );
 qboolean	UIVM_IsFullscreen		( void );

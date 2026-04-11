@@ -47,6 +47,201 @@ keyGlobals_t	kg;
 
 extern	console_t con;
 
+static void Message_SetChatMode( qboolean teamChat ) {
+	chat_playerNum = -1;
+	chat_team = teamChat;
+}
+
+static void Message_SetWhisperMode( int clientNum ) {
+	chat_playerNum = clientNum;
+	chat_team = qfalse;
+}
+
+static void Message_ResetFieldView( field_t *edit ) {
+	int len = strlen( edit->buffer );
+
+	edit->cursor = len;
+	edit->scroll = 0;
+}
+
+static void Message_CycleMode( void ) {
+	if ( chat_playerNum != -1 ) {
+		Message_SetChatMode( qfalse );
+		return;
+	}
+
+	Message_SetChatMode( chat_team ? qfalse : qtrue );
+}
+
+static void Message_SanitizeString2( const char *in, char *out ) {
+	int i = 0;
+	int r = 0;
+
+	while ( in[i] ) {
+		if ( i >= MAX_NAME_LENGTH - 1 ) {
+			break;
+		}
+		if ( in[i] == '^' ) {
+			if ( in[i + 1] >= '0' && in[i + 1] <= '9' ) {
+				i += 2;
+				continue;
+			}
+			i++;
+			continue;
+		}
+		if ( in[i] < 32 ) {
+			i++;
+			continue;
+		}
+		out[r] = tolower( in[i] );
+		r++;
+		i++;
+	}
+	out[r] = 0;
+}
+
+static int Message_FindWhisperTarget( const char *target ) {
+	int idnum;
+	int i;
+	int match = -1;
+	char s2[MAX_STRING_CHARS];
+	char n2[MAX_STRING_CHARS];
+
+	if ( !target || !target[0] ) {
+		return -1;
+	}
+
+	if ( target[0] >= '0' && target[0] <= '9' && strlen( target ) == 1 ) {
+		idnum = atoi( target );
+		if ( idnum >= 0 && idnum < MAX_CLIENTS ) {
+			const char *playerInfo = cl.gameState.stringData + cl.gameState.stringOffsets[CS_PLAYERS + idnum];
+			if ( playerInfo && playerInfo[0] ) {
+				return idnum;
+			}
+		}
+		return -1;
+	}
+
+	if ( ( target[0] == '1' || target[0] == '2' ) && target[1] >= '0' && target[1] <= '9' && strlen( target ) == 2 ) {
+		idnum = atoi( target );
+		if ( idnum >= 0 && idnum < MAX_CLIENTS ) {
+			const char *playerInfo = cl.gameState.stringData + cl.gameState.stringOffsets[CS_PLAYERS + idnum];
+			if ( playerInfo && playerInfo[0] ) {
+				return idnum;
+			}
+		}
+		return -1;
+	}
+
+	if ( target[0] == '3' && target[1] >= '0' && target[1] <= '1' && strlen( target ) == 2 ) {
+		idnum = atoi( target );
+		if ( idnum >= 0 && idnum < MAX_CLIENTS ) {
+			const char *playerInfo = cl.gameState.stringData + cl.gameState.stringOffsets[CS_PLAYERS + idnum];
+			if ( playerInfo && playerInfo[0] ) {
+				return idnum;
+			}
+		}
+		return -1;
+	}
+
+	Message_SanitizeString2( target, s2 );
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		const char *playerInfo = cl.gameState.stringData + cl.gameState.stringOffsets[CS_PLAYERS + i];
+
+		if ( !playerInfo || !playerInfo[0] ) {
+			continue;
+		}
+
+		Message_SanitizeString2( Info_ValueForKey( playerInfo, "n" ), n2 );
+		if ( strstr( n2, s2 ) ) {
+			if ( match != -1 ) {
+				return -2;
+			}
+			match = i;
+		}
+	}
+
+	return match;
+}
+
+static void Message_ShowWhisperTargetError( const char *target, int result ) {
+	char sanitized[MAX_NAME_LENGTH];
+
+	if ( result == -2 ) {
+		Com_Printf( "More than one user '%s' on the server\n", target );
+		return;
+	}
+
+	Message_SanitizeString2( target, sanitized );
+	if ( sanitized[0] ) {
+		Com_Printf( "User '%s' is not on the server\n", target );
+	}
+}
+
+static qboolean Message_TryApplyWhisperTarget( field_t *edit, const char *target, const char *remainder ) {
+	const int clientNum = Message_FindWhisperTarget( target );
+
+	if ( clientNum < 0 ) {
+		Message_ShowWhisperTargetError( target, clientNum );
+		return qfalse;
+	}
+
+	Message_SetWhisperMode( clientNum );
+	Q_strncpyz( edit->buffer, remainder, sizeof( edit->buffer ) );
+	Message_ResetFieldView( edit );
+	return qtrue;
+}
+
+static qboolean Message_ConsumeShortcutPrefix( field_t *edit ) {
+	char *buffer = edit->buffer;
+
+	if ( !Q_strncmp( buffer, "/1 ", 3 ) ) {
+		Message_SetChatMode( qfalse );
+		memmove( buffer, buffer + 3, strlen( buffer + 3 ) + 1 );
+		Message_ResetFieldView( edit );
+		return qtrue;
+	}
+
+	if ( !Q_strncmp( buffer, "/say ", 5 ) ) {
+		Message_SetChatMode( qfalse );
+		memmove( buffer, buffer + 5, strlen( buffer + 5 ) + 1 );
+		Message_ResetFieldView( edit );
+		return qtrue;
+	}
+
+	if ( !Q_strncmp( buffer, "/2 ", 3 ) ) {
+		Message_SetChatMode( qtrue );
+		memmove( buffer, buffer + 3, strlen( buffer + 3 ) + 1 );
+		Message_ResetFieldView( edit );
+		return qtrue;
+	}
+
+	if ( !Q_strncmp( buffer, "/say_team ", 10 ) ) {
+		Message_SetChatMode( qtrue );
+		memmove( buffer, buffer + 10, strlen( buffer + 10 ) + 1 );
+		Message_ResetFieldView( edit );
+		return qtrue;
+	}
+
+	if ( !Q_strncmp( buffer, "/w ", 3 ) ) {
+		char *targetStart = buffer + 3;
+		char *targetEnd = strchr( targetStart, ' ' );
+
+		if ( targetEnd ) {
+			char target[MAX_NAME_LENGTH];
+			const int targetLen = Q_min( (int)( targetEnd - targetStart ), (int)sizeof( target ) - 1 );
+
+			if ( targetLen > 0 ) {
+				Com_Memcpy( target, targetStart, targetLen );
+				target[targetLen] = '\0';
+				return Message_TryApplyWhisperTarget( edit, target, targetEnd + 1 );
+			}
+		}
+	}
+
+	return qfalse;
+}
+
 // do NOT blithely change any of the key names (3rd field) here, since they have to match the key binds
 //	in the CFG files, they're also prepended with "KEYNAME_" when looking up StringEd references
 //
@@ -727,6 +922,10 @@ void Field_CharEvent( field_t *edit, int ch ) {
 	if ( edit->cursor == len + 1) {
 		edit->buffer[edit->cursor] = 0;
 	}
+
+	if ( edit == &chatField && ch == ' ' ) {
+		Message_ConsumeShortcutPrefix( edit );
+	}
 }
 
 /*
@@ -737,6 +936,10 @@ Handles history and console scrollback
 ====================
 */
 void Console_Key( int key ) {
+	if ( Con_HandleMouseClick( key ) ) {
+		return;
+	}
+
 	// ctrl-L clears screen
 	if ( keynames[key].lower == 'l' && kg.keys[A_CTRL].down ) {
 		Cbuf_AddText( "clear\n" );
@@ -762,6 +965,7 @@ void Console_Key( int key ) {
 
 		// print executed command
 		Com_Printf( "%c%s\n", CONSOLE_PROMPT_CHAR, g_consoleField.buffer );
+		Con_TrackOutgoingWhisperCommand( g_consoleField.buffer );
 
 		// check if cgame wants to eat the command...?
 		if ( cls.cgameStarted && cl.mSharedMemory ) {
@@ -809,11 +1013,13 @@ void Console_Key( int key ) {
 
 	// tab completion
 	if ( key == A_TAB ) {
+		if ( !g_consoleField.buffer[0] ) {
+			Con_CycleTab();
+			return;
+		}
 		Field_AutoComplete( &g_consoleField );
 		return;
 	}
-
-	// history scrolling
 	if ( key == A_CURSOR_UP || key == A_KP_8
 		|| (kg.keys[A_SHIFT].down && key == A_MWHEELUP)
 		|| (kg.keys[A_CTRL].down && keynames[key].lower == 'p') )
@@ -890,7 +1096,14 @@ void Message_Key( int key ) {
 		return;
 	}
 
+	if ( key == A_TAB ) {
+		Message_CycleMode();
+		return;
+	}
+
 	if ( key == A_ENTER || key == A_KP_ENTER ) {
+		Message_ConsumeShortcutPrefix( &chatField );
+
 		if ( chatField.buffer[0] && cls.state == CA_ACTIVE ) {
 
 			if (Q_strchrs(chatField.buffer, "%") || Q_strchrs(chatField.buffer, "\"")  || !Q_strncmp(chatField.buffer, "GF", 2))
@@ -945,8 +1158,10 @@ void Message_Key( int key ) {
 #if 1
 			CL_RandomizeColors(chatField.buffer, coloredString);
 			if (cls.JKVersion != VERSION_1_01_CONSOLE) {
-				if ( chat_playerNum != -1 )
+				if ( chat_playerNum != -1 ) {
+					Con_TrackOutgoingWhisperTarget( chat_playerNum );
 					Com_sprintf( buffer, sizeof( buffer ), "tell %i \"%s\"\n", chat_playerNum, chatField.buffer);
+				}
 				else if ( chat_team )
 					Com_sprintf( buffer, sizeof( buffer ), "say_team \"%s\"\n", chatField.buffer);
 				else if (strlen(cl_chatStylePrefix->string) || strlen(cl_chatStyleSuffix->string))
@@ -955,8 +1170,10 @@ void Message_Key( int key ) {
 					Com_sprintf( buffer, sizeof( buffer ), "say \"%s\"\n", coloredString );
 			}
 			else {
-				if ( chat_playerNum != -1 ) //pms are still broken? maybe they handle them like pc
+				if ( chat_playerNum != -1 ) { //pms are still broken? maybe they handle them like pc
+					Con_TrackOutgoingWhisperTarget( chat_playerNum );
 					Com_sprintf(buffer, sizeof(buffer), "tell %i %s", chat_playerNum, chatField.buffer); //or maybe it should be "tell \"%i %s\"" ?
+				}
 				else if ( chat_team ) {
 					Com_sprintf( buffer, sizeof( buffer ), "say_team %s", chatField.buffer);
 				}

@@ -403,6 +403,25 @@ int CG_LastWhisperer(void) {
 	return lastWhispererId;
 }
 
+qboolean CG_GetChatBoxAnchor( float *x, float *y ) {
+	const float fontScale = 0.65f * cg_chatBoxFontSize.value;
+	if ( x ) {
+		*x = ( cg.scoreBoardShowing ? 8.0f : cg_chatBoxX.value ) * cgs.widthRatioCoef;
+	}
+	if ( y ) {
+		*y = cg_chatBoxHeight.value;
+		if ( cg.scoreBoardShowing ) {
+			if ( cg.pressingScoreBoard && cgs.numClients > 25 ) {
+				*y = 10000.0f;
+			}
+			else {
+				*y = 475.0f - ( 20 * fontScale );
+			}
+		}
+	}
+	return qtrue;
+}
+
 /*
 ================
 CG_Argv
@@ -878,7 +897,7 @@ static void CG_RegisterSounds( void ) {
 	cgs.media.fallSound = trap->S_RegisterSound( "sound/player/fallsplat.wav");
 
 	cgs.media.crackleSound = trap->S_RegisterSound( "sound/effects/energy_crackle.wav" );
-	
+
 	cgs.media.flameThrowerSound = trap->S_RegisterSound("sound/weapons/boba/bf_flame.mp3");
 
 //JAPRO - Clientside - Hitsounds Start
@@ -1338,7 +1357,7 @@ static void CG_RegisterGraphics( void )
 	//breathing efx from SP
 	cgs.effects.breath = trap->FX_RegisterEffect("effects/misc/breath.efx");
 	cgs.effects.waterBreath = trap->FX_RegisterEffect("effects/misc/waterbreath.efx");
-	
+
 	cgs.effects.flameThrowerHit = trap->FX_RegisterEffect("effects/env/fire_wall");
 	cgs.effects.flameThrowerVfx = trap->FX_RegisterEffect("effects/mp/fthrw_bobafire");
 	cgs.effects.flameThrowerVfxBase = trap->FX_RegisterEffect("effects/boba/fthrw");
@@ -3486,6 +3505,7 @@ Q_EXPORT cgameExport_t* QDECL GetModuleAPI( int apiVersion, cgameImport_t *impor
 	cge.MiscEnt					= CG_MiscEnt;
 	cge.CameraShake				= CG_FX_CameraShake;
 	cge.LastWhisperer			= CG_LastWhisperer;
+	cge.GetChatBoxAnchor		= CG_GetChatBoxAnchor;
 
 	cg_legacyCGameAPI = qfalse;
 

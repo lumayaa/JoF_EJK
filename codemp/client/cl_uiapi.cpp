@@ -87,13 +87,13 @@ static void uiAsyncThreadMain()
 			lock.unlock();
 			continue;
 		}
-		
+
 		if (it->second.status == UI_ASYNC_CANCELLED)
 		{
 			lock.unlock();
 			continue;
 		}
-		
+
 		jobCopy = it->second;
 		lock.unlock();
 
@@ -147,7 +147,7 @@ static void uiAsyncThreadMain()
 			continue;
 		if (it2->second.status == UI_ASYNC_CANCELLED)
 			continue;
-		
+
 		if (status == UI_ASYNC_DONE)
 		{
 			it2->second.data = std::move(data);
@@ -166,11 +166,11 @@ static void uiAsyncEnsureThread()
 {
 	if (uiAsyncStarted.load())
 		return;
-	
+
 	std::lock_guard<std::mutex> lock(uiAsyncMutex);
 	if (uiAsyncStarted.load())
 		return;
-	
+
 	uiAsyncStop = false;
 	uiAsyncThread = std::thread(uiAsyncThreadMain);
 	uiAsyncStarted = true;
@@ -204,17 +204,17 @@ static void uiAsyncShutdown()
 		uiAsyncJobs.clear();
 		uiAsyncStarted = false;
 	}
-	
+
 }
 
 static int uiAsyncStartGetFileList(const char* path, const char* extension, const int bufSize)
 {
 	if (!path || !path[0] || bufSize <= 0)
 		return -1;
-	
+
 	if (uiAsyncStop.load())
 		return -1;
-	
+
 	uiAsyncEnsureThread();
 	uiAsyncJob job;
 	job.id = uiAsyncNextId.fetch_add(1);
@@ -229,7 +229,7 @@ static int uiAsyncStartGetFileList(const char* path, const char* extension, cons
 	std::lock_guard<std::mutex> lock(uiAsyncMutex);
 	uiAsyncJobs.emplace(job.id, job);
 	uiAsyncQueue.push_back(job.id);
-	
+
 	uiAsyncCv.notify_all();
 	return job.id;
 }
@@ -238,15 +238,15 @@ static int uiAsyncStatus(const int jobId, int* outLen)
 {
 	if (outLen)
 		*outLen = 0;
-	
+
 	std::lock_guard<std::mutex> lock(uiAsyncMutex);
 	auto it = uiAsyncJobs.find(jobId);
 	if (it == uiAsyncJobs.end())
 		return UI_ASYNC_INVALID;
-	
+
 	if (it->second.status == UI_ASYNC_DONE && outLen)
 		*outLen = it->second.dataSize;
-	
+
 	return it->second.status;
 }
 
@@ -254,19 +254,19 @@ static int uiAsyncRead(const int jobId, void* buffer, int bufSize)
 {
 	std::lock_guard<std::mutex> lock(uiAsyncMutex);
 	const auto it = uiAsyncJobs.find(jobId);
-	
+
 	if (it == uiAsyncJobs.end())
 		return -1;
-	
+
 	if (it->second.status == UI_ASYNC_PENDING)
 		return 0;
-	
+
 	if (it->second.status != UI_ASYNC_DONE)
 		return -1;
-	
+
 	if (bufSize < it->second.dataSize)
 		return -it->second.dataSize;
-	
+
 	if (it->second.dataSize > 0 && buffer)
 		memcpy(buffer, it->second.data.data(), it->second.dataSize);
 
@@ -319,6 +319,20 @@ void UIVM_KeyEvent( int key, qboolean down ) {
 
 extern int SDL_MouseCursorX, SDL_MouseCursorY;
 cvar_t *in_useRelativeMouseCursor = NULL;
+void UIVM_GetCursorPos( float *x, float *y ) {
+	if ( x ) {
+		*x = 0.0f;
+	}
+	if ( y ) {
+		*y = 0.0f;
+	}
+	if ( uivm->isLegacy ) {
+		return;
+	}
+	VMSwap v( uivm );
+	uie->GetCursorPos( x, y );
+}
+
 void UIVM_MouseEvent( int dx, int dy ) {
 	if (!in_useRelativeMouseCursor)
 		in_useRelativeMouseCursor = Cvar_Get("in_useRelativeMouseCursor", "1", CVAR_NONE, ""); //NOTE - IF THIS ISN'T 1 BY DEFAULT THE CURSOR WILL BE LOCKED TO A CORNER INGAME WHEN OPENING THE ESCAPE MENU

@@ -106,6 +106,20 @@ int CGVM_LastWhisperer(void) {
 	return cge->LastWhisperer();
 }
 
+qboolean CGVM_GetChatBoxAnchor( float *x, float *y ) {
+	if ( x ) {
+		*x = 0.0f;
+	}
+	if ( y ) {
+		*y = 0.0f;
+	}
+	if ( cgvm->isLegacy ) {
+		return qfalse;
+	}
+	VMSwap v( cgvm );
+	return cge->GetChatBoxAnchor( x, y );
+}
+
 void CGVM_KeyEvent( int key, qboolean down ) {
 	if ( cgvm->isLegacy ) {
 		VM_Call( cgvm, CG_KEY_EVENT, key, down );

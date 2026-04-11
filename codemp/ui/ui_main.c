@@ -2671,7 +2671,7 @@ void UpdateForceStatus(void)
 			{
 				UI_SetForceDisabled(disabledForce);
 				trap->Cvar_SetValue( "ui_drawTeamForces",
-					cg_enableForceMenu.integer || 
+					cg_enableForceMenu.integer ||
 					ui_gametype.integer >= GT_TEAM ||
 					(uiForceSide == FORCE_LIGHTSIDE && !uiForcePowersDisabled[FP_TEAM_HEAL]) ||
 					(uiForceSide == FORCE_DARKSIDE && !uiForcePowersDisabled[FP_TEAM_FORCE])
@@ -12179,7 +12179,7 @@ static qboolean bIsSkinFile(const char* dirptr, const char* skinname)
 
 	return qfalse;
 }
-	
+
 void UI_BuildQ3Model_List_ProcessDir(char* dirptr, char* filelist, int numfiles)
 {
 	char* fileptr = filelist;
@@ -12474,7 +12474,7 @@ void UI_BuildQ3Model_List_Async(void)
 {
 	if (uiInfo.q3HeadCount > 0)
 		return;
-	
+
 	memset(&uiQ3ModelBuild, 0, sizeof(uiQ3ModelBuild));
 	uiInfo.q3HeadCount = 0;
 	uiQ3ModelBuild.dirCount = -1;
@@ -12689,7 +12689,7 @@ void UI_Init( qboolean inGameLoad ) {
 	String_Init();
 
 	AssetCache();
-	
+
 	(int)trap->Cvar_VariableValue("ui_hasStartedAsyncQ3ModelBuild") ? UI_BuildQ3Model_List(uiQ3ModelBuild.dirList,
 		uiQ3ModelBuild.fileList,
 		sizeof(uiQ3ModelBuild.fileList)) : UI_BuildQ3Model_List_Async();
@@ -12821,7 +12821,7 @@ void UI_Refresh( int realtime )
 	UI_SetColor( NULL );
 
 	if (!uiInfo.newUIAPI || ui_drawCursor.integer) {
-		if ((trap->Key_GetCatcher() & KEYCATCH_UI) && Menu_Count() > 0) {
+		if (trap->Key_GetCatcher() & ( KEYCATCH_UI | KEYCATCH_CONSOLE )) {
 			UI_DrawHandlePic( uiInfo.uiDC.cursorx, uiInfo.uiDC.cursory, 42.0f * uiInfo.uiDC.widthRatioCoef, 42.0f, uiInfo.uiDC.Assets.cursor );
 		}
 	}
@@ -12960,6 +12960,15 @@ void UI_KeyEvent( int key, qboolean down ) {
 UI_MouseEvent
 =================
 */
+void UI_GetCursorPos( float *x, float *y ) {
+	if ( x ) {
+		*x = uiInfo.uiDC.cursorx;
+	}
+	if ( y ) {
+		*y = uiInfo.uiDC.cursory;
+	}
+}
+
 void UI_MouseEvent( int dx, int dy )
 {
 	// update mouse screen position
@@ -13438,6 +13447,7 @@ Q_EXPORT uiExport_t* QDECL GetModuleAPI( int apiVersion, uiImport_t *import )
 	uie.DrawConnectScreen	= UI_DrawConnectScreen;
 	uie.MenuReset			= Menu_Reset;
 	uie.CvarHelp			= UI_CvarHelp;
+	uie.GetCursorPos			= UI_GetCursorPos;
 
 	uiInfo.newUIAPI = qtrue;
 

@@ -449,6 +449,48 @@ extern char	notifyWords[MAX_NOTIFYWORDS][32];
 extern int stampColor;
 
 extern void QDECL CL_LogPrintf(fileHandle_t fileHandle, const char *fmt, ...);
+
+static qboolean CL_ParseWhisperName( const char *text, char *out, int outSize ) {
+	char clean[MAX_STRING_CHARS];
+	const char *start;
+	const char *end;
+	int i;
+	int j;
+	int len;
+
+	if ( !text || !out || !outSize ) {
+		return qfalse;
+	}
+
+	out[0] = '\0';
+	for ( i = 0, j = 0; text[i] && j < (int)sizeof( clean ) - 1; i++ ) {
+		if ( Q_IsColorString( &text[i] ) ) {
+			i++;
+			continue;
+		}
+		if ( text[i] < 32 ) {
+			continue;
+		}
+		clean[j++] = text[i];
+	}
+	clean[j] = '\0';
+
+	start = strchr( clean, '[' );
+	end = strstr( clean, "]:" );
+	if ( !start || !end || end <= start + 1 ) {
+		return qfalse;
+	}
+
+	start++;
+	len = (int)( end - start );
+	if ( len >= outSize ) {
+		len = outSize - 1;
+	}
+
+	Q_strncpyz( out, start, len + 1 );
+	return qtrue;
+}
+
 qboolean CL_GetServerCommand( int serverCommandNumber ) {
 	const char *s;
 	const char *cmd;
@@ -559,6 +601,8 @@ rescan:
 
 	if (!Q_stricmp(cmd, "chat") || !Q_stricmp(cmd, "tchat") || !Q_stricmp(cmd, "lchat") || !Q_stricmp(cmd, "ltchat"))
 	{
+		char whisperName[MAX_NAME_LENGTH];
+
 		if (cl_logChat->integer) {
 			char chat[MAX_NETNAME + MAX_SAY_TEXT + 12];
 			int i, l;
@@ -580,6 +624,10 @@ rescan:
 		}
 
 		stampColor = COLOR_WHITE;
+		Con_SetNextMessageContext( !Q_stricmp( cmd, "tchat" ) || !Q_stricmp( cmd, "ltchat" ) ? CON_MESSAGE_SAY_TEAM : CON_MESSAGE_SAY, -1, NULL );
+		if ( ( !Q_stricmp( cmd, "chat" ) || !Q_stricmp( cmd, "lchat" ) ) && CL_ParseWhisperName( Cmd_Argv(1), whisperName, sizeof( whisperName ) ) ) {
+			Con_SetNextMessageContext( CON_MESSAGE_WHISPER, -1, whisperName );
+		}
 
 #ifdef _WIN32
 		if (con_notifywords->integer == -1 && (com_unfocused->integer || com_minimized->integer)) {
@@ -609,6 +657,7 @@ rescan:
 
 	if (!Q_stricmp(cmd, "print")) {
 		s = Cmd_Argv(1);
+		Con_SetNextMessageContext( CON_MESSAGE_MISC, -1, NULL );
 
 		if (Q_stristr(s, "@@@PLRENAME")) {
 			stampColor = COLOR_MAGENTA;
@@ -629,6 +678,8 @@ rescan:
 		}
 		return qtrue;
 	}
+
+	Con_SetNextMessageContext( CON_MESSAGE_MISC, -1, NULL );
 
 	// we may want to put a "connect to other server" command here
 

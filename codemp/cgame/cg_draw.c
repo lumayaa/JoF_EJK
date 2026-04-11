@@ -1176,7 +1176,7 @@ static void CG_DrawSaberStyle(centity_t* cent, menuDef_t* menuHUD)
         }
         break;
 
-    case 7: // SS_STAFF i love fae 
+    case 7: // SS_STAFF i love fae
         focusItem = Menu_FindItemByName(menuHUD, "saberstyle_staff");
 
         if (focusItem)
@@ -9818,7 +9818,7 @@ static void CG_DrawSiegeHUDItem(void)
 /*====================================
 chatbox functionality -rww
 ====================================*/
-#define	CHATBOX_FONT_HEIGHT	20
+
 
 //utility func, insert a string into a string at the specified
 //place (assuming this will not overflow the buffer)
@@ -9947,7 +9947,7 @@ void CG_ChatBox_AddString(char *chatStr)
 		lastWhisperer = lastWhisperer + 1; //is for example Padawan
 
 		int clientNum = CG_ClientNumFromName(lastWhisperer);
-		
+
 
 		if (clientNum != cg.clientNum)
 		{
@@ -10136,7 +10136,7 @@ void CG_ChatBox_AddString(char *chatStr)
 					//calculate the offsets
 					char *b = emojiStr + bpoint;
 					if (chat->lines > 0)
-						chat->emoji[emojiIndex].yOffset += ((CHATBOX_FONT_HEIGHT * fontScale) * chat->lines);
+						chat->emoji[emojiIndex].yOffset += ((20 * fontScale) * chat->lines);
 
 					//adjust for various font types
 					switch (cg_newFont.integer) {
@@ -10235,15 +10235,15 @@ static QINLINE void CG_ChatBox_DrawStrings(void)
 	int i = 0;
 	float x = (cg.scoreBoardShowing ? 8 : cg_chatBoxX.value) * cgs.widthRatioCoef;
 	float y = cg_chatBoxHeight.value;
+	float fontScale = 0.65 * cg_chatBoxFontSize.value;//JAPRO - Clientside - Chatbox Font Size Scaler
 	if (cg.scoreBoardShowing)
 	{
 		if (cg.pressingScoreBoard && cgs.numClients > 25)
 			y = 10000;
 		else
-			y = 475;
+			y = 475 - (20 * fontScale);
 	}
-	
-	float fontScale = 0.65 * cg_chatBoxFontSize.value;//JAPRO - Clientside - Chatbox Font Size Scaler
+
 	const qboolean drawAnyway = (qboolean)(cg_chatBoxShowHistory.integer && (trap->Key_GetCatcher() & KEYCATCH_CONSOLE));
 
 	if (!cg_chatBox.integer) {
@@ -10279,7 +10279,7 @@ static QINLINE void CG_ChatBox_DrawStrings(void)
 	}
 
 	//move initial point up so we draw bottom-up (visually)
-	y -= (CHATBOX_FONT_HEIGHT*fontScale)*linesToDraw;
+	y -= (20*fontScale)*linesToDraw;
 
 	//we have the items we want to draw, just quickly loop through them now
 	i = 0;
@@ -10314,7 +10314,7 @@ static QINLINE void CG_ChatBox_DrawStrings(void)
 				break;
 		}
 
-		y += ((CHATBOX_FONT_HEIGHT*fontScale)*drawThese[i]->lines);
+		y += ((20*fontScale)*drawThese[i]->lines);
 		i++;
 	}
 }

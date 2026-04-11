@@ -24,8 +24,12 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 // console.c
 
+#include <ctype.h>
+#include <stdlib.h>
+
 #include "client.h"
 #include "cl_cgameapi.h"
+#include "cl_uiapi.h"
 #include "qcommon/stringed_ingame.h"
 #include "qcommon/game_version.h"
 
@@ -43,6 +47,7 @@ cvar_t		*con_autoclear;
 cvar_t		*con_notifywords;
 cvar_t		*con_notifyconnect;
 cvar_t		*con_notifyvote;
+cvar_t		*con_chatInputFieldBorders;
 
 #define	DEFAULT_CONSOLE_WIDTH	78
 #define TIMESTAMP_LENGTH 9
@@ -50,6 +55,783 @@ cvar_t		*con_notifyvote;
 vec4_t	console_color = {0.509f, 0.609f, 0.847f, 1.0f};
 
 int replying;
+extern int SDL_MouseCursorX, SDL_MouseCursorY;
+
+typedef enum {
+	CON_TAB_FILTER_ALL,
+	CON_TAB_FILTER_MISC,
+	CON_TAB_FILTER_SAY,
+	CON_TAB_FILTER_SAY_TEAM,
+	CON_TAB_FILTER_WHISPER
+} conTabFilter_t;
+
+typedef enum {
+	CON_WHISPER_LIVE,
+	CON_WHISPER_STALE
+} conWhisperState_t;
+
+typedef struct {
+	qboolean inUse;
+	int id;
+	int clientNum;
+	conWhisperState_t state;
+	int lastUsedTime;
+	char displayName[MAX_NAME_LENGTH];
+	char sanitizedName[MAX_NAME_LENGTH];
+} conWhisperTab_t;
+
+typedef struct {
+	int x;
+	int y;
+	int w;
+	int h;
+	conTabFilter_t filter;
+	int whisperTabId;
+} conRenderedTab_t;
+
+static int conLineMessageType[CON_TEXTSIZE];
+static int conLineWhisperTab[CON_TEXTSIZE];
+static conWhisperTab_t conWhisperTabs[MAX_CLIENTS * 2];
+static qboolean Con_IsFilteredScrollActive( void );
+static int Con_FindFilteredRow( int startRow, int step );
+static int Con_GetFilteredBottomRow( void );
+
+static conRenderedTab_t conRenderedTabs[5];
+static int conRenderedTabCount = 0;
+static int conNextWhisperClientNum = -1;
+static int conPendingOutgoingWhisperClientNum = -1;
+static int conSelectedWhisperTabId = -1;
+static int conNextWhisperTabId = 1;
+static consoleMessageType_t conNextMessageType = CON_MESSAGE_MISC;
+static conTabFilter_t conSelectedTabFilter = CON_TAB_FILTER_ALL;
+static char conNextWhisperName[MAX_NAME_LENGTH];
+
+static void Con_ResetTabHitboxes( void ) {
+	conRenderedTabCount = 0;
+}
+
+static void Con_ResetLineMetadata( void ) {
+	int i;
+
+	for ( i = 0; i < CON_TEXTSIZE; i++ ) {
+		conLineMessageType[i] = CON_MESSAGE_MISC;
+		conLineWhisperTab[i] = -1;
+	}
+}
+
+static void Con_SanitizeName( const char *in, char *out, int outSize ) {
+	int i;
+	int outPos = 0;
+	char clean[MAX_NAME_LENGTH];
+
+	if ( !outSize ) {
+		return;
+	}
+
+	Q_strncpyz( clean, in ? in : "", sizeof( clean ) );
+	Q_StripColor( clean );
+
+	for ( i = 0; clean[i] && outPos < outSize - 1; i++ ) {
+		const unsigned char c = (unsigned char)clean[i];
+
+		if ( c == '\x19' || c < ' ' ) {
+			continue;
+		}
+
+		out[outPos++] = (char)tolower( c );
+	}
+
+	out[outPos] = '\0';
+}
+
+static qboolean Con_GetPlayerNameForClientNum( int clientNum, char *out, int outSize ) {
+	const char *info;
+	const char *name;
+
+	if ( !outSize ) {
+		return qfalse;
+	}
+
+	out[0] = '\0';
+
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+
+	if ( !cl.gameState.stringOffsets[CS_PLAYERS + clientNum] ) {
+		return qfalse;
+	}
+
+	info = cl.gameState.stringData + cl.gameState.stringOffsets[CS_PLAYERS + clientNum];
+	name = Info_ValueForKey( info, "n" );
+	if ( !name || !name[0] ) {
+		return qfalse;
+	}
+
+	Q_strncpyz( out, name, outSize );
+	return qtrue;
+}
+
+static int Con_ResolveClientNumByName( const char *name ) {
+	int i;
+	int match = -1;
+	int matches = 0;
+	char sanitizedTarget[MAX_NAME_LENGTH];
+
+	Con_SanitizeName( name, sanitizedTarget, sizeof( sanitizedTarget ) );
+	if ( !sanitizedTarget[0] ) {
+		return -1;
+	}
+
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		char currentName[MAX_NAME_LENGTH];
+		char sanitizedCurrent[MAX_NAME_LENGTH];
+
+		if ( !Con_GetPlayerNameForClientNum( i, currentName, sizeof( currentName ) ) ) {
+			continue;
+		}
+
+		Con_SanitizeName( currentName, sanitizedCurrent, sizeof( sanitizedCurrent ) );
+		if ( Q_stricmp( sanitizedTarget, sanitizedCurrent ) ) {
+			continue;
+		}
+
+		match = i;
+		matches++;
+		if ( matches > 1 ) {
+			return -1;
+		}
+	}
+
+	return match;
+}
+
+static int Con_LocalClientNum( void ) {
+	if ( cls.state == CA_ACTIVE || cls.state == CA_PRIMED ) {
+		return cl.snap.ps.clientNum;
+	}
+
+	return -1;
+}
+
+static qboolean Con_ParseWhisperName( const char *text, char *out, int outSize ) {
+	const char *marker = "^7]: ^6";
+	const char *start;
+	const char *end;
+	int len;
+
+	if ( !text || !out || !outSize ) {
+		return qfalse;
+	}
+
+	out[0] = '\0';
+	start = strchr( text, '[' );
+	end = strstr( text, marker );
+	if ( !start || !end || end <= start + 1 ) {
+		return qfalse;
+	}
+
+	start++;
+	len = (int)( end - start );
+	if ( len >= outSize ) {
+		len = outSize - 1;
+	}
+
+	Q_strncpyz( out, start, len + 1 );
+	return qtrue;
+}
+
+static conWhisperTab_t *Con_FindWhisperTabById( int tabId ) {
+	int i;
+
+	for ( i = 0; i < ARRAY_LEN( conWhisperTabs ); i++ ) {
+		if ( conWhisperTabs[i].inUse && conWhisperTabs[i].id == tabId ) {
+			return &conWhisperTabs[i];
+		}
+	}
+
+	return NULL;
+}
+
+static conWhisperTab_t *Con_AllocWhisperTab( void ) {
+	int i;
+	conWhisperTab_t *oldest = NULL;
+
+	for ( i = 0; i < ARRAY_LEN( conWhisperTabs ); i++ ) {
+		if ( !conWhisperTabs[i].inUse ) {
+			Com_Memset( &conWhisperTabs[i], 0, sizeof( conWhisperTabs[i] ) );
+			conWhisperTabs[i].inUse = qtrue;
+			conWhisperTabs[i].id = conNextWhisperTabId++;
+			conWhisperTabs[i].clientNum = -1;
+			return &conWhisperTabs[i];
+		}
+
+		if ( !oldest || conWhisperTabs[i].lastUsedTime < oldest->lastUsedTime ) {
+			oldest = &conWhisperTabs[i];
+		}
+	}
+
+	if ( oldest ) {
+		Com_Memset( oldest, 0, sizeof( *oldest ) );
+		oldest->inUse = qtrue;
+		oldest->id = conNextWhisperTabId++;
+		oldest->clientNum = -1;
+		return oldest;
+	}
+
+	return NULL;
+}
+
+static int Con_RegisterWhisperTab( int clientNum, const char *name ) {
+	int i;
+	char displayName[MAX_NAME_LENGTH];
+	char sanitizedName[MAX_NAME_LENGTH];
+
+	if ( name && name[0] ) {
+		Q_strncpyz( displayName, name, sizeof( displayName ) );
+	}
+	else if ( !Con_GetPlayerNameForClientNum( clientNum, displayName, sizeof( displayName ) ) ) {
+		Q_strncpyz( displayName, "Whisper", sizeof( displayName ) );
+	}
+
+	Con_SanitizeName( displayName, sanitizedName, sizeof( sanitizedName ) );
+
+	if ( clientNum >= 0 ) {
+		for ( i = 0; i < ARRAY_LEN( conWhisperTabs ); i++ ) {
+			if ( !conWhisperTabs[i].inUse || conWhisperTabs[i].state != CON_WHISPER_LIVE ) {
+				continue;
+			}
+
+			if ( conWhisperTabs[i].clientNum != clientNum ) {
+				continue;
+			}
+
+			if ( Q_stricmp( conWhisperTabs[i].sanitizedName, sanitizedName ) ) {
+				conWhisperTabs[i].state = CON_WHISPER_STALE;
+				conWhisperTabs[i].clientNum = -1;
+				continue;
+			}
+
+			Q_strncpyz( conWhisperTabs[i].displayName, displayName, sizeof( conWhisperTabs[i].displayName ) );
+			conWhisperTabs[i].lastUsedTime = cls.realtime;
+			return conWhisperTabs[i].id;
+		}
+	}
+
+	for ( i = 0; i < ARRAY_LEN( conWhisperTabs ); i++ ) {
+		if ( !conWhisperTabs[i].inUse ) {
+			continue;
+		}
+
+		if ( !Q_stricmp( conWhisperTabs[i].sanitizedName, sanitizedName ) ) {
+			if ( clientNum >= 0 && conWhisperTabs[i].state == CON_WHISPER_STALE ) {
+				continue;
+			}
+			Q_strncpyz( conWhisperTabs[i].displayName, displayName, sizeof( conWhisperTabs[i].displayName ) );
+			conWhisperTabs[i].lastUsedTime = cls.realtime;
+			return conWhisperTabs[i].id;
+		}
+	}
+
+	{
+		conWhisperTab_t *tab = Con_AllocWhisperTab();
+		if ( !tab ) {
+			return -1;
+		}
+
+		tab->clientNum = clientNum;
+		tab->state = ( clientNum >= 0 ) ? CON_WHISPER_LIVE : CON_WHISPER_STALE;
+		tab->lastUsedTime = cls.realtime;
+		Q_strncpyz( tab->displayName, displayName, sizeof( tab->displayName ) );
+		Q_strncpyz( tab->sanitizedName, sanitizedName, sizeof( tab->sanitizedName ) );
+		return tab->id;
+	}
+}
+
+static int Con_FindOrCreateWhisperTabForText( int clientNum, const char *name ) {
+	char parsedName[MAX_NAME_LENGTH];
+
+	if ( name && name[0] ) {
+		Q_strncpyz( parsedName, name, sizeof( parsedName ) );
+	}
+	else {
+		parsedName[0] = '\0';
+	}
+
+	if ( clientNum < 0 && parsedName[0] ) {
+		clientNum = Con_ResolveClientNumByName( parsedName );
+	}
+
+	return Con_RegisterWhisperTab( clientNum, parsedName );
+}
+
+static int Con_CurrentWhisperTabId( void ) {
+	int clientNum = conNextWhisperClientNum;
+	char whisperName[MAX_NAME_LENGTH];
+	char localName[MAX_NAME_LENGTH];
+	char sanitizedWhisperName[MAX_NAME_LENGTH];
+	char sanitizedLocalName[MAX_NAME_LENGTH];
+
+	if ( !conNextWhisperName[0] ) {
+		whisperName[0] = '\0';
+	}
+	else {
+		Q_strncpyz( whisperName, conNextWhisperName, sizeof( whisperName ) );
+	}
+
+	if ( clientNum < 0 && whisperName[0] ) {
+		clientNum = Con_ResolveClientNumByName( whisperName );
+	}
+
+	if ( whisperName[0] && Con_GetPlayerNameForClientNum( Con_LocalClientNum(), localName, sizeof( localName ) ) ) {
+		Con_SanitizeName( whisperName, sanitizedWhisperName, sizeof( sanitizedWhisperName ) );
+		Con_SanitizeName( localName, sanitizedLocalName, sizeof( sanitizedLocalName ) );
+		if ( !Q_stricmp( sanitizedWhisperName, sanitizedLocalName ) && conPendingOutgoingWhisperClientNum >= 0 ) {
+			clientNum = conPendingOutgoingWhisperClientNum;
+			if ( !Con_GetPlayerNameForClientNum( clientNum, whisperName, sizeof( whisperName ) ) ) {
+				whisperName[0] = '\0';
+			}
+		}
+	}
+
+	if ( clientNum < 0 && !whisperName[0] ) {
+		return -1;
+	}
+
+	return Con_FindOrCreateWhisperTabForText( clientNum, whisperName );
+}
+
+static void Con_ApplyCurrentLineMetadata( int row ) {
+	int slot;
+
+	if ( row < 0 || con.totallines <= 0 ) {
+		return;
+	}
+
+	slot = row % con.totallines;
+	if ( slot < 0 || slot >= CON_TEXTSIZE ) {
+		return;
+	}
+
+	conLineMessageType[slot] = conNextMessageType;
+	conLineWhisperTab[slot] = ( conNextMessageType == CON_MESSAGE_WHISPER ) ? Con_CurrentWhisperTabId() : -1;
+}
+
+static qboolean Con_LineMatchesFilter( int row, conTabFilter_t filter, int whisperTabId ) {
+	const int slot = row % con.totallines;
+	const int messageType = conLineMessageType[slot];
+
+	switch ( filter ) {
+	case CON_TAB_FILTER_ALL:
+		return qtrue;
+	case CON_TAB_FILTER_MISC:
+		return ( messageType == CON_MESSAGE_MISC ) ? qtrue : qfalse;
+	case CON_TAB_FILTER_SAY:
+		return ( messageType == CON_MESSAGE_SAY ) ? qtrue : qfalse;
+	case CON_TAB_FILTER_SAY_TEAM:
+		return ( messageType == CON_MESSAGE_SAY_TEAM ) ? qtrue : qfalse;
+	case CON_TAB_FILTER_WHISPER:
+		return ( messageType == CON_MESSAGE_WHISPER ) ? qtrue : qfalse;
+	}
+
+	return qtrue;
+}
+
+static void Con_AddRenderedTab( int x, int y, int w, int h, conTabFilter_t filter, int whisperTabId ) {
+	float ax = (float)x;
+	float ay = (float)y;
+	float aw = (float)w;
+	float ah = (float)h;
+
+	if ( conRenderedTabCount >= ARRAY_LEN( conRenderedTabs ) ) {
+		return;
+	}
+
+	SCR_AdjustFrom640( &ax, &ay, &aw, &ah );
+
+	conRenderedTabs[conRenderedTabCount].x = (int)ax;
+	conRenderedTabs[conRenderedTabCount].y = (int)ay;
+	conRenderedTabs[conRenderedTabCount].w = (int)aw;
+	conRenderedTabs[conRenderedTabCount].h = (int)ah;
+	conRenderedTabs[conRenderedTabCount].filter = filter;
+	conRenderedTabs[conRenderedTabCount].whisperTabId = whisperTabId;
+	conRenderedTabCount++;
+}
+
+static void Con_RefreshWhisperTabs( void ) {
+	int i;
+
+	for ( i = 0; i < ARRAY_LEN( conWhisperTabs ); i++ ) {
+		char currentName[MAX_NAME_LENGTH];
+		char sanitizedCurrent[MAX_NAME_LENGTH];
+
+		if ( !conWhisperTabs[i].inUse || conWhisperTabs[i].state != CON_WHISPER_LIVE ) {
+			continue;
+		}
+
+		if ( !Con_GetPlayerNameForClientNum( conWhisperTabs[i].clientNum, currentName, sizeof( currentName ) ) ) {
+			conWhisperTabs[i].state = CON_WHISPER_STALE;
+			conWhisperTabs[i].clientNum = -1;
+			continue;
+		}
+
+		Con_SanitizeName( currentName, sanitizedCurrent, sizeof( sanitizedCurrent ) );
+		if ( Q_stricmp( conWhisperTabs[i].sanitizedName, sanitizedCurrent ) ) {
+			conWhisperTabs[i].state = CON_WHISPER_STALE;
+			conWhisperTabs[i].clientNum = -1;
+			continue;
+		}
+
+		Q_strncpyz( conWhisperTabs[i].displayName, currentName, sizeof( conWhisperTabs[i].displayName ) );
+	}
+}
+
+static int Con_DrawSingleTab( int x, int y, const char *label, conTabFilter_t filter, int whisperTabId, qboolean selected, qboolean stale ) {
+	const float tabCharWidth = 6.0f * cls.widthRatioCoef;
+	const float tabCharHeight = 6.0f;
+	const int textLen = (int)strlen( label );
+	const int width = (int)( textLen * tabCharWidth );
+	vec4_t tabColor;
+
+	if ( selected ) {
+		MAKERGBA( tabColor, 1.0f, 1.0f, 1.0f, 1.0f );
+	}
+	else if ( stale ) {
+		MAKERGBA( tabColor, 1.0f, 0.45f, 0.45f, 1.0f );
+	}
+	else {
+		MAKERGBA( tabColor, 0.78f, 0.86f, 1.0f, 1.0f );
+	}
+
+	SCR_DrawStringExt2( x, y, tabCharWidth, tabCharHeight, label, tabColor, qtrue, qfalse );
+
+	if ( selected ) {
+		re->SetColor( console_color );
+		re->DrawStretchPic( x, y + tabCharHeight + 1, width, 1, 0, 0, 0, 0, cls.whiteShader );
+	}
+	Con_AddRenderedTab( x, y, width, (int)tabCharHeight + 3, filter, whisperTabId );
+
+	return width + (int)( tabCharWidth * 1.5f );
+}
+
+static void Con_DrawFooterTabs( int barY ) {
+	int x = 6;
+	int y = barY + 6;
+	int maxWidth = SCREEN_WIDTH - 12;
+	int advance;
+
+
+	Con_RefreshWhisperTabs();
+	Con_ResetTabHitboxes();
+
+	advance = Con_DrawSingleTab( x, y, "All", CON_TAB_FILTER_ALL, -1, conSelectedTabFilter == CON_TAB_FILTER_ALL ? qtrue : qfalse, qfalse );
+	x += advance;
+	advance = Con_DrawSingleTab( x, y, "Misc", CON_TAB_FILTER_MISC, -1, conSelectedTabFilter == CON_TAB_FILTER_MISC ? qtrue : qfalse, qfalse );
+	x += advance;
+	advance = Con_DrawSingleTab( x, y, "Say", CON_TAB_FILTER_SAY, -1, conSelectedTabFilter == CON_TAB_FILTER_SAY ? qtrue : qfalse, qfalse );
+	x += advance;
+	advance = Con_DrawSingleTab( x, y, "Team", CON_TAB_FILTER_SAY_TEAM, -1, conSelectedTabFilter == CON_TAB_FILTER_SAY_TEAM ? qtrue : qfalse, qfalse );
+	x += advance;
+
+	advance = Con_DrawSingleTab( x, y, "Whispers", CON_TAB_FILTER_WHISPER, -1, conSelectedTabFilter == CON_TAB_FILTER_WHISPER ? qtrue : qfalse, qfalse );
+	x += advance;
+
+	re->SetColor( NULL );
+}
+
+void Con_SetNextMessageContext( consoleMessageType_t type, int whisperClientNum, const char *whisperName ) {
+	conNextMessageType = type;
+	conNextWhisperClientNum = whisperClientNum;
+	if ( whisperName && whisperName[0] ) {
+		Q_strncpyz( conNextWhisperName, whisperName, sizeof( conNextWhisperName ) );
+	}
+	else {
+		conNextWhisperName[0] = '\0';
+	}
+}
+
+void Con_TrackOutgoingWhisperTarget( int clientNum ) {
+	if ( clientNum >= 0 && clientNum < MAX_CLIENTS ) {
+		conPendingOutgoingWhisperClientNum = clientNum;
+		Con_FindOrCreateWhisperTabForText( clientNum, "" );
+	}
+}
+
+void Con_TrackOutgoingWhisperCommand( const char *command ) {
+	const char *cursor = command;
+	char target[MAX_NAME_LENGTH];
+	int targetLen = 0;
+
+	if ( !command ) {
+		return;
+	}
+
+	while ( *cursor == ' ' ) {
+		cursor++;
+	}
+
+	if ( Q_stricmpn( cursor, "tell ", 5 ) ) {
+		return;
+	}
+
+	cursor += 5;
+	while ( *cursor == ' ' ) {
+		cursor++;
+	}
+
+	while ( cursor[targetLen] && !isspace( (unsigned char)cursor[targetLen] ) && targetLen < (int)sizeof( target ) - 1 ) {
+		target[targetLen] = cursor[targetLen];
+		targetLen++;
+	}
+	target[targetLen] = '\0';
+
+	if ( !target[0] ) {
+		return;
+	}
+
+	if ( target[0] >= '0' && target[0] <= '9' ) {
+		Con_TrackOutgoingWhisperTarget( atoi( target ) );
+	}
+	else {
+		Con_TrackOutgoingWhisperTarget( Con_ResolveClientNumByName( target ) );
+	}
+}
+
+void Con_CycleTab( void ) {
+	switch ( conSelectedTabFilter ) {
+	case CON_TAB_FILTER_ALL:
+		conSelectedTabFilter = CON_TAB_FILTER_MISC;
+		break;
+	case CON_TAB_FILTER_MISC:
+		conSelectedTabFilter = CON_TAB_FILTER_SAY;
+		break;
+	case CON_TAB_FILTER_SAY:
+		conSelectedTabFilter = CON_TAB_FILTER_SAY_TEAM;
+		break;
+	case CON_TAB_FILTER_SAY_TEAM:
+		conSelectedTabFilter = CON_TAB_FILTER_WHISPER;
+		break;
+	case CON_TAB_FILTER_WHISPER:
+	default:
+		conSelectedTabFilter = CON_TAB_FILTER_ALL;
+		break;
+	}
+
+	conSelectedWhisperTabId = -1;
+	Con_Bottom();
+}
+
+qboolean Con_HandleMouseClick( int key ) {
+	int i;
+	float cursorX = (float)SDL_MouseCursorX;
+	float cursorY = (float)SDL_MouseCursorY;
+
+	if ( key != A_MOUSE1 ) {
+		return qfalse;
+	}
+
+	if ( cls.uiStarted ) {
+		float uiCursorX = 0.0f;
+		float uiCursorY = 0.0f;
+
+		UIVM_GetCursorPos( &uiCursorX, &uiCursorY );
+		if ( uiCursorX > 0.0f || uiCursorY > 0.0f ) {
+			SCR_AdjustFrom640( &uiCursorX, &uiCursorY, NULL, NULL );
+			cursorX = uiCursorX;
+			cursorY = uiCursorY;
+		}
+	}
+
+	for ( i = 0; i < conRenderedTabCount; i++ ) {
+		const conRenderedTab_t *tab = &conRenderedTabs[i];
+
+		if ( cursorX < tab->x || cursorX >= tab->x + tab->w ) {
+			continue;
+		}
+		if ( cursorY < tab->y || cursorY >= tab->y + tab->h ) {
+			continue;
+		}
+
+		conSelectedTabFilter = tab->filter;
+		conSelectedWhisperTabId = tab->whisperTabId;
+		if ( conSelectedTabFilter != CON_TAB_FILTER_WHISPER ) {
+			conSelectedWhisperTabId = -1;
+		}
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+static int CL_ChatInputFontHandle( void ) {
+	static int smallFont = 0;
+	static int mediumFont = 0;
+	static int small2Font = 0;
+	const int chatFont = (int)Cvar_VariableValue( "cg_newFont" );
+
+	if ( !smallFont ) {
+		smallFont = re->RegisterFont( "ocr_a" );
+	}
+	if ( !mediumFont ) {
+		mediumFont = re->RegisterFont( "ergoec" );
+	}
+	if ( !small2Font ) {
+		small2Font = re->RegisterFont( "arialnb" );
+	}
+
+	switch ( chatFont ) {
+	case 1:
+		return mediumFont;
+	case 2:
+		return small2Font;
+	default:
+		return smallFont;
+	}
+}
+
+static float CL_ChatInputFontScale( void ) {
+	const float scale = 0.65f * Cvar_VariableValue( "cg_chatBoxFontSize" );
+	return ( scale > 0.0f ) ? scale : 0.65f;
+}
+
+static void CL_ChatInputEscapeString( const char *in, char *out, int outSize ) {
+	int i = 0;
+
+	if ( !outSize ) {
+		return;
+	}
+
+	while ( *in && i < outSize - 1 ) {
+		if ( *in == '^' ) {
+			if ( i >= outSize - 2 ) {
+				break;
+			}
+			out[i++] = '^';
+		}
+		out[i++] = *in++;
+	}
+
+	out[i] = '\0';
+}
+
+static int CL_ChatInputTextWidth( const char *text, int fontHandle, float scale ) {
+	char escaped[MAX_STRING_CHARS * 2];
+
+	CL_ChatInputEscapeString( text, escaped, sizeof( escaped ) );
+	return re->Font_StrLenPixels( escaped, fontHandle, scale );
+}
+
+static void CL_DrawChatInputText( int x, int y, const char *text, const vec4_t color, int fontHandle, float scale ) {
+	char escaped[MAX_STRING_CHARS * 2];
+
+	CL_ChatInputEscapeString( text, escaped, sizeof( escaped ) );
+	re->Font_DrawString( x, y, escaped, color, STYLE_DROPSHADOW | fontHandle, -1, scale );
+}
+
+static void CL_DrawChatInputBorder( int x, int y, int width, int fontHandle, float scale ) {
+	int borderStyle = con_chatInputFieldBorders ? con_chatInputFieldBorders->integer : 1;
+	int fontHeight;
+	int borderLeft;
+	int borderTop;
+	int borderWidth;
+	int borderHeight;
+
+	if ( width <= 0 ) {
+		return;
+	}
+
+	if ( borderStyle < 0 ) {
+		borderStyle = 0;
+	}
+	else if ( borderStyle > 2 ) {
+		borderStyle = 2;
+	}
+
+	if ( !borderStyle ) {
+		return;
+	}
+
+	fontHeight = re->Font_HeightPixels( fontHandle, scale );
+	borderLeft = x - 3;
+	borderTop = y + 2;
+	borderWidth = width + 6;
+	borderHeight = fontHeight + 2;
+
+	re->SetColor( console_color );
+	re->DrawStretchPic( borderLeft, borderTop, borderWidth, 1, 0, 0, 0, 0, cls.whiteShader );
+	if ( borderStyle == 1 ) {
+		re->DrawStretchPic( borderLeft, borderTop + borderHeight - 1, borderWidth, 1, 0, 0, 0, 0, cls.whiteShader );
+		re->DrawStretchPic( borderLeft, borderTop, 1, borderHeight, 0, 0, 0, 0, cls.whiteShader );
+		re->DrawStretchPic( borderLeft + borderWidth - 1, borderTop, 1, borderHeight, 0, 0, 0, 0, cls.whiteShader );
+	}
+	re->SetColor( NULL );
+}
+
+static void CL_DrawChatInputField( field_t *edit, int x, int y, int maxWidth, int fontHandle, float scale ) {
+	char visible[MAX_STRING_CHARS];
+	char prefix[MAX_STRING_CHARS];
+	char cursorString[2];
+	int cursorPos;
+	int start;
+	int end;
+	int len;
+	int cursorX;
+	int textWidth;
+
+	if ( maxWidth <= 0 ) {
+		return;
+	}
+
+	len = (int)strlen( edit->buffer );
+	cursorPos = edit->cursor;
+	if ( cursorPos < 0 ) {
+		cursorPos = 0;
+	}
+	if ( cursorPos > len ) {
+		cursorPos = len;
+	}
+
+	start = edit->scroll;
+	if ( start < 0 ) {
+		start = 0;
+	}
+	if ( start > cursorPos ) {
+		start = cursorPos;
+	}
+
+	while ( start < cursorPos ) {
+		Q_strncpyz( prefix, edit->buffer + start, Q_min( cursorPos - start + 1, (int)sizeof( prefix ) ) );
+		if ( CL_ChatInputTextWidth( prefix, fontHandle, scale ) < maxWidth ) {
+			break;
+		}
+		start++;
+	}
+
+	end = start;
+	visible[0] = '\0';
+	while ( end < len ) {
+		Q_strncpyz( visible, edit->buffer + start, Q_min( end - start + 2, (int)sizeof( visible ) ) );
+		if ( CL_ChatInputTextWidth( visible, fontHandle, scale ) > maxWidth ) {
+			visible[end - start] = '\0';
+			break;
+		}
+		end++;
+	}
+
+	edit->scroll = start;
+	CL_DrawChatInputText( x, y, visible, colorWhite, fontHandle, scale );
+
+	if ( ( (int)( cls.realtime >> 8 ) & 1 ) != 0 ) {
+		return;
+	}
+
+	Q_strncpyz( prefix, edit->buffer + start, Q_min( cursorPos - start + 1, (int)sizeof( prefix ) ) );
+	textWidth = CL_ChatInputTextWidth( prefix, fontHandle, scale );
+	cursorX = x + textWidth;
+	cursorString[0] = kg.key_overstrikeMode ? '_' : '|';
+	cursorString[1] = '\0';
+	CL_DrawChatInputText( cursorX, y, cursorString, colorWhite, fontHandle, scale );
+}
 
 /*
 ================
@@ -89,7 +871,7 @@ void Con_MessageMode_f (void) {	//yell
 	chat_playerNum = -1;
 	chat_team = qfalse;
 	Field_Clear( &chatField );
-	chatField.widthInChars = SCREEN_WIDTH / (BIGCHAR_WIDTH * cls.widthRatioCoef) - (16 * cls.widthRatioCoef);
+	chatField.widthInChars = 151;
 	Key_SetCatcher( Key_GetCatcher( ) ^ KEYCATCH_MESSAGE );
 }
 
@@ -102,7 +884,7 @@ void Con_MessageMode2_f (void) {	//team chat
 	chat_playerNum = -1;
 	chat_team = qtrue;
 	Field_Clear( &chatField );
-	chatField.widthInChars = SCREEN_WIDTH / (BIGCHAR_WIDTH * cls.widthRatioCoef) - (25 * cls.widthRatioCoef);
+	chatField.widthInChars = 151;
 	Key_SetCatcher( Key_GetCatcher( ) ^ KEYCATCH_MESSAGE );
 }
 
@@ -131,7 +913,7 @@ void Con_MessageMode3_f (void) {	//target chat
 	}
 	chat_team = qfalse;
 	Field_Clear( &chatField );
-	chatField.widthInChars = SCREEN_WIDTH / (BIGCHAR_WIDTH * cls.widthRatioCoef) - (24 * cls.widthRatioCoef);
+	chatField.widthInChars = 151;
 	Key_SetCatcher( Key_GetCatcher( ) ^ KEYCATCH_MESSAGE );
 }
 
@@ -155,7 +937,7 @@ void Con_MessageMode4_f (void)
 	}
 	chat_team = qfalse;
 	Field_Clear( &chatField );
-	chatField.widthInChars = SCREEN_WIDTH / (BIGCHAR_WIDTH * cls.widthRatioCoef) - (24 * cls.widthRatioCoef);
+	chatField.widthInChars = 151;
 	Key_SetCatcher( Key_GetCatcher( ) ^ KEYCATCH_MESSAGE );
 }
 /*
@@ -177,14 +959,14 @@ void Con_MessageMode5_f(void)
 		chat_playerNum = -1;
 		return;
 	}
-	
+
 	replying = 1;
 
 	chat_team = qfalse;
 	Field_Clear(&chatField);
-	chatField.widthInChars = SCREEN_WIDTH / (BIGCHAR_WIDTH * cls.widthRatioCoef) - (24 * cls.widthRatioCoef);
+	chatField.widthInChars = 151;
 	Key_SetCatcher(Key_GetCatcher() ^ KEYCATCH_MESSAGE);
-	
+
 }
 
 /*
@@ -198,6 +980,7 @@ void Con_Clear_f (void) {
 	for ( i = 0 ; i < CON_TEXTSIZE ; i++ ) {
 		con.text[i] = (ColorIndex(COLOR_WHITE)<<8) | ' ';
 	}
+	Con_ResetLineMetadata();
 
 	Con_Bottom();		// go to end
 }
@@ -431,7 +1214,7 @@ void Con_Dump_f (void)
 #else
 		Q_strcat(buffer, bufferlen, "\n");
 #endif
-		FS_Write(buffer, strlen(buffer), f);
+		FS_Write(buffer, (int)strlen(buffer), f);
 	}
 
 	Hunk_FreeTempMemory( buffer );
@@ -478,6 +1261,7 @@ void Con_CheckResize (void)
 		{
 			con.text[i] = (ColorIndex(COLOR_WHITE)<<8) | ' ';
 		}
+		Con_ResetLineMetadata();
 	}
 	else
 	{
@@ -519,6 +1303,7 @@ void Con_CheckResize (void)
 		for(i=0; i<CON_TEXTSIZE; i++)
 
 			con.text[i] = (ColorIndex(COLOR_WHITE)<<8) | ' ';
+		Con_ResetLineMetadata();
 
 
 		for (i=0 ; i<numlines ; i++)
@@ -576,6 +1361,7 @@ void Con_Init (void) {
 	con_notifywords = Cvar_Get("con_notifywords", "0", CVAR_ARCHIVE, "Notifies you when defined words are mentioned");
 	con_notifyconnect = Cvar_Get("con_notifyconnect", "0", CVAR_ARCHIVE, "Notifies you when someone connects to the server");
 	con_notifyvote = Cvar_Get("con_notifyvote", "1", CVAR_ARCHIVE, "Notifies you when someone calls a vote");
+	con_chatInputFieldBorders = Cvar_Get("chatInputFieldBorders", "0", CVAR_ARCHIVE, "Chat input field border style: 0 none, 1 all sides, 2 top only");
 
 	Field_Clear( &g_consoleField );
 	g_consoleField.widthInChars = DEFAULT_CONSOLE_WIDTH;
@@ -583,6 +1369,7 @@ void Con_Init (void) {
 		Field_Clear( &historyEditLines[i] );
 		historyEditLines[i].widthInChars = DEFAULT_CONSOLE_WIDTH;
 	}
+	Con_ResetLineMetadata();
 
 	Cmd_AddCommand( "toggleconsole", Con_ToggleConsole_f, "Show/hide console" );
 	Cmd_AddCommand( "togglemenu", Con_ToggleMenu_f, "Show/hide the menu" );
@@ -687,6 +1474,7 @@ static void Con_Linefeed (qboolean skipnotify)
 	if (con.display == con.current)
 		con.display++;
 	con.current++;
+	Con_ApplyCurrentLineMetadata( con.current );
 
 	for(i=0; i<con.linewidth; i++)
 		con.text[(con.current%con.totallines)*con.linewidth+i] = (ColorIndex(COLOR_WHITE)<<8) | ' '; //Spacing between timestamp and text, and other spaces
@@ -739,6 +1527,7 @@ void CL_ConsolePrint( const char *txt ) {
 
 	color = ColorIndex(COLOR_WHITE);
 	l = -1;
+	Con_ApplyCurrentLineMetadata( con.current );
 
 	while ( (c = (unsigned char) *txt) != 0 ) {
 		if ( Q_IsColorString( (unsigned char*) txt ) ) {
@@ -801,6 +1590,12 @@ void CL_ConsolePrint( const char *txt ) {
 	}
 
 	stampColor = COLOR_GREY;
+	if ( conNextMessageType == CON_MESSAGE_WHISPER ) {
+		conPendingOutgoingWhisperClientNum = -1;
+	}
+	conNextMessageType = CON_MESSAGE_MISC;
+	conNextWhisperClientNum = -1;
+	conNextWhisperName[0] = '\0';
 }
 
 
@@ -935,10 +1730,10 @@ void Con_DrawNotify (void)
 	short	*text;
 	int		i;
 	int		time;
-	int		skip;
+
 	int		currentColor;
 	const char* chattext;
-	int		whispering = 0;
+
 
 	currentColor = 7;
 	re->SetColor( g_color_table[currentColor] );
@@ -1032,23 +1827,32 @@ void Con_DrawNotify (void)
 		strcat(base, "Whisper to ");
 	}
 
-	char player[100];
-	
-
 	if ( Key_GetCatcher( ) & KEYCATCH_MESSAGE )
 	{
+		const float chatFontScale = CL_ChatInputFontScale();
+		const int chatFontHandle = CL_ChatInputFontHandle();
+		int chatX = (int)( Cvar_VariableValue( "cg_chatBoxX" ) * cls.widthRatioCoef );
+		int chatY = (int)( Cvar_VariableValue( "cg_chatBoxHeight" ) );
+
+		if ( cls.cgameStarted ) {
+			float chatAnchorX = 0.0f;
+			float chatAnchorY = 0.0f;
+
+			if ( CGVM_GetChatBoxAnchor( &chatAnchorX, &chatAnchorY ) ) {
+				chatX = (int)chatAnchorX;
+				chatY = (int)chatAnchorY;
+			}
+		}
+
 		if (chat_playerNum != -1) {
-			char* s = cl.gameState.stringData + cl.gameState.stringOffsets[CS_PLAYERS+chat_playerNum];		
+			char* s = cl.gameState.stringData + cl.gameState.stringOffsets[CS_PLAYERS+chat_playerNum];
 			char* player = Info_ValueForKey(s, "n");//this contains name
 			char sanitized[MAX_NAME_LENGTH];
-			char without_color[100];
 			CL_ClientCleanName(player, sanitized, MAX_NAME_LENGTH);	//sanitize the name to avoid crashing, saves in sanitized
 
 			strcat(base, sanitized);
 			strcat(base, ":");
 			chattext = base;
-
-			whispering = 1;			
 		}
 		else if (chat_team)	{
 			chattext = SE_GetString("MP_SVGAME", "SAY_TEAM");
@@ -1057,25 +1861,13 @@ void Con_DrawNotify (void)
 			chattext = SE_GetString("MP_SVGAME", "SAY");
 		}
 
-		if (whispering)
-		{
-			SCR_DrawStringExt2(8 * cls.widthRatioCoef, v, BIGCHAR_WIDTH * cls.widthRatioCoef, BIGCHAR_HEIGHT, chattext, chatColour, qfalse, qfalse);
-			skip = 1;
-			v += BIGCHAR_HEIGHT;
-			Field_BigDraw(&chatField, skip * BIGCHAR_WIDTH, v,
-				SCREEN_WIDTH - (skip + 1) * BIGCHAR_WIDTH, qtrue, qtrue);
+		const int promptWidth = CL_ChatInputTextWidth( chattext, chatFontHandle, chatFontScale );
+		const int chatRowWidth = SCREEN_WIDTH - chatX - 8;
 
-		}
-		else
-		{
-			SCR_DrawStringExt2(8 * cls.widthRatioCoef, v, BIGCHAR_WIDTH * cls.widthRatioCoef, BIGCHAR_HEIGHT, chattext, chatColour, qfalse, qfalse);
-			skip = strlen(chattext) + 1;
-			Field_BigDraw(&chatField, skip * BIGCHAR_WIDTH, v,
-				SCREEN_WIDTH - (skip + 1) * BIGCHAR_WIDTH, qtrue, qtrue);
-
-			v += BIGCHAR_HEIGHT;
-		}
-	}
+		CL_DrawChatInputBorder( chatX, chatY, chatRowWidth, chatFontHandle, chatFontScale );
+		CL_DrawChatInputText( chatX, chatY, chattext, colorWhite, chatFontHandle, chatFontScale );
+		CL_DrawChatInputField( &chatField, chatX + promptWidth + 6, chatY, SCREEN_WIDTH - chatX - promptWidth - 14, chatFontHandle, chatFontScale );
+}
 }
 
 /*
@@ -1135,6 +1927,7 @@ void Con_DrawSolidConsole( float frac ) {
 
 	re->SetColor( console_color );
 	re->DrawStretchPic( 0, y, SCREEN_WIDTH, 2, 0, 0, 0, 0, cls.whiteShader );
+	Con_DrawFooterTabs( y );
 
 #if 0
 	i = strlen( JK_VERSION );
@@ -1144,7 +1937,7 @@ void Con_DrawSolidConsole( float frac ) {
 			(lines-(con.charHeight*2+con.charHeight/2)) + padding, JK_VERSION[x] );
 	}
 #else
-	i = strlen(version);
+	i = (int)strlen(version);
 
 	for (x = 0; x < i; x++) {
 		SCR_DrawSmallChar(cls.glconfig.vidWidth - (i - x + 1) * con.charWidth,
@@ -1159,7 +1952,7 @@ void Con_DrawSolidConsole( float frac ) {
 	if (newtime->tm_hour > 12) newtime->tm_hour -= 12;
 	if (newtime->tm_hour == 0) newtime->tm_hour = 12;
 	Com_sprintf(ts, sizeof(ts), "%.19s %s ", asctime(newtime), AM ? "AM" : "PM" );
-	i = strlen(ts);
+	i = (int)strlen(ts);
 
 	for (x = 0; x<i; x++) {
 		SCR_DrawSmallChar(cls.glconfig.vidWidth - (i - x) * con.charWidth, lines - (con.charHeight + con.charHeight / 2) + padding, ts[x]);
@@ -1173,7 +1966,7 @@ void Con_DrawSolidConsole( float frac ) {
 	y = lines - (con.charHeight*3);
 
 	// draw from the bottom up
-	if (con.display != con.current)
+	if (con.display != ( Con_IsFilteredScrollActive() ? Con_GetFilteredBottomRow() : con.current ))
 	{
 	// draw arrows to show the buffer is backscrolled
 		re->SetColor( console_color );
@@ -1204,12 +1997,13 @@ void Con_DrawSolidConsole( float frac ) {
 		iPixelHeightToAdvance = (1.3/con.yadjust) * re->Font_HeightPixels(iFontIndexForAsian, fFontScaleForAsian);	// for asian spacing, since we don't want glyphs to touch.
 	}
 
-	for (i=0 ; i<rows ; i++, y -= iPixelHeightToAdvance, row--)
+	for (i=0 ; i<rows && row >= 0 ; row--)
 	{
-		if (row < 0)
-			break;
 		if (con.current - row >= con.totallines) {
 			// past scrollback wrap point
+			continue;
+		}
+		if ( !Con_LineMatchesFilter( row, conSelectedTabFilter, conSelectedWhisperTabId ) ) {
 			continue;
 		}
 
@@ -1251,6 +2045,8 @@ void Con_DrawSolidConsole( float frac ) {
 				SCR_DrawSmallChar(  (int) (con.xadjust + (x+1)*con.charWidth), y, text[x] & 0xff );
 			}
 		}
+		i++;
+		y -= iPixelHeightToAdvance;
 	}
 
 	// draw the input prompt, user text, and cursor if desired
@@ -1325,17 +2121,71 @@ void Con_SetFrac(const float conFrac) {
 	con.tempFrac = conFrac;
 }
 
+static qboolean Con_IsFilteredScrollActive( void ) {
+	return ( conSelectedTabFilter != CON_TAB_FILTER_ALL ) ? qtrue : qfalse;
+}
+
+
+static int Con_GetFilteredBottomRow( void ) {
+	const int row = Con_FindFilteredRow( con.current, -1 );
+	return ( row >= 0 ) ? row : con.current;
+}
+static int Con_GetOldestRow( void ) {
+	int oldest = con.current - con.totallines + 1;
+	return ( oldest < 0 ) ? 0 : oldest;
+}
+
+static int Con_FindFilteredRow( int startRow, int step ) {
+	const int oldest = Con_GetOldestRow();
+	int row = startRow;
+
+	while ( row >= oldest && row <= con.current ) {
+		if ( Con_LineMatchesFilter( row, conSelectedTabFilter, conSelectedWhisperTabId ) ) {
+			return row;
+		}
+		row += step;
+	}
+
+	return -1;
+}
+
 void Con_PageUp( void ) {
+	if ( Con_IsFilteredScrollActive() ) {
+		int row = Con_FindFilteredRow( con.display - 1, -1 );
+		if ( row >= 0 ) {
+			con.display = row;
+		}
+		row = Con_FindFilteredRow( con.display - 1, -1 );
+		if ( row >= 0 ) {
+			con.display = row;
+		}
+		return;
+	}
 	con.display -= 2;
 	if ( con.current - con.display >= con.totallines ) {
 		con.display = con.current - con.totallines + 1;
-	} //fixme
-	/*if ( con.current - con.display >= con.linecount ) {
-		con.display = con.current - con.linecount + 2;
-	}*/
+	}
 }
 
 void Con_PageDown( void ) {
+	if ( Con_IsFilteredScrollActive() ) {
+		int row = Con_FindFilteredRow( con.display + 1, 1 );
+		if ( row >= 0 ) {
+			con.display = row;
+		}
+		else {
+			con.display = con.current;
+			return;
+		}
+		row = Con_FindFilteredRow( con.display + 1, 1 );
+		if ( row >= 0 ) {
+			con.display = row;
+		}
+		else {
+			con.display = con.current;
+		}
+		return;
+	}
 	con.display += 2;
 	if (con.display > con.current) {
 		con.display = con.current;
@@ -1343,6 +2193,13 @@ void Con_PageDown( void ) {
 }
 
 void Con_Top( void ) {
+	if ( Con_IsFilteredScrollActive() ) {
+		const int row = Con_FindFilteredRow( Con_GetOldestRow(), 1 );
+		if ( row >= 0 ) {
+			con.display = row;
+		}
+		return;
+	}
 	con.display = con.totallines;
 	if ( con.current - con.display >= con.totallines ) {
 		con.display = con.current - con.totallines + 1;
@@ -1350,6 +2207,10 @@ void Con_Top( void ) {
 }
 
 void Con_Bottom( void ) {
+	if ( Con_IsFilteredScrollActive() ) {
+		con.display = Con_GetFilteredBottomRow();
+		return;
+	}
 	con.display = con.current;
 }
 
