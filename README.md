@@ -39,3 +39,4 @@ Installing and running EternalJK:
 * [eternal](https://github.com/eternalcodes)
 * [loda](https://github.com/videoP)
 * [Sunny](https://github.com/JKSunny) - for the Vulkan renderer version we package with our releases: [![Fork](https://img.shields.io/badge/repository-EternalJK-brightgreen.svg)](https://github.com/JKSunny/EternalJK)
+* [Tayst](https://github.com/taysta) - for changes contributed to Sunny's EJK which we sourced from.

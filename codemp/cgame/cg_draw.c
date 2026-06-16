@@ -2224,6 +2224,9 @@ void CG_DrawHUD(centity_t	*cent)
 		scoreStr = "";
 	}
 
+	if (cg_showClientIDs.integer && scoreStr[0])
+		scoreStr = va("%s [%i]", scoreStr, cg.snap->ps.clientNum);
+
 	if (cg.predictedPlayerState.pm_type != PM_SPECTATOR)
 	{
 		if (cgs.newHud && cg_hudFiles.integer == 1)
@@ -7417,10 +7420,18 @@ static void CG_DrawCrosshair( vec3_t worldPoint, int chEntValid ) {
 
 	//draw a health bar directly under the crosshair if we're looking at something
 	//that takes damage
-	if (crossEnt &&	crossEnt->currentState.maxhealth && cg_drawPlayerNames.integer < 2)//loda
+	if (crossEnt && crossEnt->currentState.maxhealth)//loda
 	{
-		CG_DrawHealthBar(crossEnt, chX, chY, w, h);
-		chY += HEALTH_HEIGHT*2;
+		// Only require Force Sense 3 for NPC health bars NOT placed by mapper (shouldtarget = mapper's showhealth 1)
+		if (!(crossEnt->currentState.number >= MAX_CLIENTS
+			&& crossEnt->currentState.eType == ET_NPC
+			&& !crossEnt->currentState.shouldtarget
+			&& !(cg.predictedPlayerState.fd.forcePowersActive & (1 << FP_SEE)
+				&& cg.predictedPlayerState.fd.forcePowerLevel[FP_SEE] >= 3)))
+		{
+			CG_DrawHealthBar(crossEnt, chX, chY, w, h);
+			chY += HEALTH_HEIGHT * 2;
+		}
 	}
 	else if (crossEnt && crossEnt->currentState.number < MAX_CLIENTS)
 	{
@@ -7438,8 +7449,13 @@ static void CG_DrawCrosshair( vec3_t worldPoint, int chEntValid ) {
 				hisVeh->currentState.maxhealth &&
 				hisVeh->m_pVehicle)
 			{ //draw the health for this vehicle
-				CG_DrawHealthBar(hisVeh, chX, chY, w, h);
-				chY += HEALTH_HEIGHT*2;
+				if (hisVeh->currentState.shouldtarget
+					|| (cg.predictedPlayerState.fd.forcePowersActive & (1 << FP_SEE)
+						&& cg.predictedPlayerState.fd.forcePowerLevel[FP_SEE] >= 3))
+				{
+					CG_DrawHealthBar(hisVeh, chX, chY, w, h);
+					chY += HEALTH_HEIGHT*2;
+				}
 			}
 		}
 	}
@@ -12008,9 +12024,6 @@ static void CG_PlayerLabels(void)
 			continue;
 
 		CG_DrawScaledProportionalString(x, y, cgs.clientinfo[i].name, UI_CENTER, colorTable[CT_WHITE], cg_drawPlayerNamesScale.value);
-
-		if (cg_drawPlayerNames.integer > 1 && cent->currentState.maxhealth)
-			CG_DrawHealthBar(cent, x, y-16, 1, 1);
 	}
 }
 

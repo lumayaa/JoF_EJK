@@ -767,7 +767,6 @@ static void CG_ModVersion_f(void)
 	trap->SendConsoleCommand("ui_modversion\n");
 	if (cgs.serverMod == SVMOD_JAPRO) {
 		trap->SendClientCommand( "modversion" );
-		trap->Cvar_Set("cjp_client", "1.4JAPRO"); //Do this manually here i guess, just incase it does not do it when game is created due to ja+ or something
 	}
 }
 
@@ -1280,6 +1279,7 @@ static void CG_Flipkick_f(void)
 static void CG_Lowjump_f(void)
 {
 	int index;
+	char val[4];
 
 	if ((cgs.serverMod == SVMOD_JAPRO && cg.predictedPlayerState.stats[STAT_RACEMODE]) || (cgs.restricts & RESTRICT_DO)) {
 		trap->SendConsoleCommand("+moveup;wait 2;-moveup\n");
@@ -1289,7 +1289,12 @@ static void CG_Lowjump_f(void)
 	index = CG_Do_GetIndex();
 	trap->SendConsoleCommand("+moveup\n");
 	Q_strncpyz(cg.doVstr[index], "-moveup\n", sizeof(cg.doVstr));
-	cg.doVstrTime[index] = trap->Milliseconds();
+
+	trap->Cvar_VariableStringBuffer("cl_cmdratecap", val, sizeof(val));
+	if (atoi(val))
+		cg.doVstrTime[index] = trap->Milliseconds() + 16;
+	else
+		cg.doVstrTime[index] = trap->Milliseconds();
 }
 
 static void CG_NorollDown_f(void)

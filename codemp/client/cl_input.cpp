@@ -31,6 +31,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #endif
 unsigned	frame_msec;
 int			old_com_frameTime;
+#define		CMDRATECAP_HZ 125
+#define		CMDRATECAP_MSEC (1000 / CMDRATECAP_HZ)   // = 8ms
+int         cmdratecap_lastFireTime;
+int			cmdratecap_commandGenerated = 0;
 
 float cl_mPitchOverride = 0.0f;
 float cl_mYawOverride = 0.0f;
@@ -1063,7 +1067,9 @@ CL_MouseEvent
 =================
 */
 void CL_MouseEvent(int dx, int dy, int time) {
-	if (g_clAutoMapMode && cls.cgameStarted)
+	if (cls.cursorActive) {
+		CL_UpdateCursorPosition( dx, dy );
+	} else if (g_clAutoMapMode && cls.cgameStarted)
 	{ //automap input
 		autoMapInput_t* data = (autoMapInput_t*)cl.mSharedMemory;
 
@@ -1859,6 +1865,27 @@ void CL_CreateNewCommands( void ) {
 	if ( cls.state < CA_PRIMED )
 		return;
 
+	// cl_cmdratecap: when enabled, cap command generation at 125Hz.
+	// Uses fixed-step accumulator � advance by CMDRATECAP_MSEC on fire,
+	// carrying overshoot forward so cmds land at steady 8ms intervals.
+	// Button wasPressed and gcmdValue persist across skipped frames naturally.
+	if (cl_cmdratecap->integer) {
+		int elapsed = com_frameTime - cmdratecap_lastFireTime;
+		if (elapsed < CMDRATECAP_MSEC) {
+			return;
+		}
+
+		// Advance by exactly CMDRATECAP_MSEC, not com_frameTime.
+		// This preserves overshoot so we average exactly 125 cmds/sec.
+		cmdratecap_lastFireTime += CMDRATECAP_MSEC;
+
+		// Safety clamp: if we fell way behind (hitch/alt-tab), snap forward
+		// to prevent a burst of rapid cmds trying to catch up.
+		if (com_frameTime - cmdratecap_lastFireTime > CMDRATECAP_MSEC * 2) {
+			cmdratecap_lastFireTime = com_frameTime;
+		}
+	}
+
 	frame_msec = com_frameTime - old_com_frameTime;
 
 	// if running over 1000fps, act as if each frame is 1ms
@@ -1873,6 +1900,7 @@ void CL_CreateNewCommands( void ) {
 
 	old_com_frameTime = com_frameTime;
 	// generate a command for this frame
+	cmdratecap_commandGenerated = 1;
 	cl.cmdNumber++;
 	cmdNum = cl.cmdNumber & REAL_CMD_MASK;//Loda - FPS UNLOCK ENGINE
 	cl.cmds[cmdNum] = CL_CreateCmd ();
@@ -2262,6 +2290,7 @@ void CL_InitInput( void ) {
 	cl_debugMove = Cvar_Get ("cl_debugMove", "0", 0);
 
 	cl_idrive = Cvar_Get ("cl_idrive", "0", CVAR_ARCHIVE);//JAPRO ENGINE
+	cmdratecap_lastFireTime = 0;
 }
 
 /*

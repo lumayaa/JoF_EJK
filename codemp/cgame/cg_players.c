@@ -3736,6 +3736,38 @@ static void CG_ClearLerpFrame( centity_t *cent, clientInfo_t *ci, lerpFrame_t *l
 	}
 }
 
+static void CG_UpdateNPCBoneAvailability( centity_t *cent ) {
+	if ( cent->currentState.eType != ET_NPC )
+	{
+		return;
+	}
+
+	if ( cent->currentState.NPC_class == CLASS_VEHICLE )
+	{
+		cent->noLumbar = qtrue;
+		cent->noFace = qtrue;
+		return;
+	}
+
+	cent->noLumbar = qfalse;
+	cent->noFace = qfalse;
+
+	if ( !cent->ghoul2 )
+	{
+		return;
+	}
+
+	if ( trap->G2API_AddBolt( cent->ghoul2, 0, "lower_lumbar" ) == -1 )
+	{
+		cent->noLumbar = qtrue;
+	}
+
+	if ( trap->G2API_AddBolt( cent->ghoul2, 0, "face" ) == -1 )
+	{
+		cent->noFace = qtrue;
+	}
+}
+
 
 /*
 ===============
@@ -5649,15 +5681,18 @@ static void CG_RunTimedForceAnimFX( centity_t *cent, clientInfo_t *ci )
 		return;
 	}
 
-	if (cent->currentState.torsoAnim == BOTH_FORCE_RAGE)
+	if (cent->currentState.torsoAnim == BOTH_FORCE_RAGE &&
+		cent->currentState.legsAnim == BOTH_FORCE_RAGE)
 	{
 		fxType = 1;
 	}
-	else if (cent->currentState.torsoAnim == BOTH_FORCEHEAL_START)
+	else if (cent->currentState.torsoAnim == BOTH_FORCEHEAL_START &&
+		cent->currentState.legsAnim == BOTH_FORCEHEAL_START)
 	{
 		fxType = 2;
 	}
-	else if (cent->currentState.torsoAnim == BOTH_FORCEHEAL_QUICK)
+	else if (cent->currentState.torsoAnim == BOTH_FORCEHEAL_QUICK &&
+		cent->currentState.legsAnim == BOTH_FORCEHEAL_QUICK)
 	{
 		fxType = 3;
 	}
@@ -8892,6 +8927,11 @@ void CG_G2AnimEntModelLoad(centity_t *cent)
 
 					cent->localAnimIndex = BG_ParseAnimationFile(GLAName, NULL, qfalse);
 				}
+				//custom skeleton - register hand bolts if they exist so
+				//weapons can attach to the correct position (e.g. hazardtrooper)
+				trap->G2API_AddBolt(cent->ghoul2, 0, "*r_hand");
+				trap->G2API_AddBolt(cent->ghoul2, 0, "*l_hand");
+				trap->G2API_AddBolt(cent->ghoul2, 0, "*chestg");
 			}
 			else
 			{ //humanoid index.
@@ -8922,24 +8962,7 @@ void CG_G2AnimEntModelLoad(centity_t *cent)
 				trap->G2API_AddBolt(cent->ghoul2, 0, "Motion");
 			}
 
-			// If this is a not vehicle...
-			if ( cent->currentState.NPC_class != CLASS_VEHICLE )
-			{
-				if (trap->G2API_AddBolt(cent->ghoul2, 0, "lower_lumbar") == -1)
-				{ //check now to see if we have this bone for setting anims and such
-					cent->noLumbar = qtrue;
-				}
-
-				if (trap->G2API_AddBolt(cent->ghoul2, 0, "face") == -1)
-				{ //check now to see if we have this bone for setting anims and such
-					cent->noFace = qtrue;
-				}
-			}
-			else
-			{
-				cent->noLumbar = qtrue;
-				cent->noFace = qtrue;
-			}
+			CG_UpdateNPCBoneAvailability( cent );
 
 			if (cent->localAnimIndex != -1)
 			{
@@ -10179,6 +10202,13 @@ void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, cl
     if ( cent->currentState.eFlags & EF_DEAD )
         return;
 
+    if ( cent->currentState.powerups & ( 1 << PW_CLOAKED ) )
+    {
+        if ( !( cg.snap->ps.fd.forcePowersActive & ( 1 << FP_SEE ) )
+            || cg.snap->ps.clientNum == cent->currentState.number )
+            return;
+    }
+
     if (!cg.renderingThirdPerson && cent->currentState.clientNum == cg.clientNum)
         return;
 
@@ -10226,7 +10256,7 @@ void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, cl
 		VectorCopy( cent->lerpAngles, bAngles );
 		bAngles[PITCH] = 0;
 		bAngles[YAW] = cent->turAngles[YAW];
-
+		
 		trap->G2API_GetBoltMatrix( cent->ghoul2, 0, newBolt, &matrix, bAngles, cent->lerpOrigin, time, gameModels, cent->modelScale );
 		
 		BG_GiveMeVectorFromMatrix( &matrix, ORIGIN, boltOrg );
@@ -10246,25 +10276,27 @@ void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, cl
 		MatrixMultiply(angAxis, re.axis, tempAxis);
 		AxisCopy(tempAxis, re.axis);
 
-		trap->G2API_GetBoltMatrix( cent->ghoul2, 0, newBolt2, &matrix, bAngles, cent->lerpOrigin, time, gameModels, cent->modelScale );
+		if (newBolt2 != -1)
+		{
+			trap->G2API_GetBoltMatrix( cent->ghoul2, 0, newBolt2, &matrix, bAngles, cent->lerpOrigin, time, gameModels, cent->modelScale );
 
-		BG_GiveMeVectorFromMatrix( &matrix, ORIGIN, boltOrg2 );
-		BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_X, re2.axis[0] );
-		BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_Y, re2.axis[1] );
-		BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_Z, re2.axis[2] );
-		VectorMA(boltOrg2, -holsterPos[0], re2.axis[1], boltOrg2);
-		VectorMA(boltOrg2, -holsterPos[1], re2.axis[0], boltOrg2);
-		VectorMA(boltOrg2, holsterPos[2], re2.axis[2], boltOrg2);
-		VectorCopy(re2.axis[0], boltAxis0);
-		VectorCopy(re2.axis[1], boltAxis1);
-		VectorCopy(re2.axis[2], boltAxis2);
-		VectorScale(boltAxis2, -1.0f, re2.axis[0]);
-		VectorCopy(boltAxis1, re2.axis[1]);
-		VectorCopy(boltAxis0, re2.axis[2]);
-		AnglesToAxis(holsterAng2, angAxis);
-		MatrixMultiply(angAxis, re2.axis, tempAxis);
-		AxisCopy(tempAxis, re2.axis);
-
+			BG_GiveMeVectorFromMatrix( &matrix, ORIGIN, boltOrg2 );
+			BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_X, re2.axis[0] );
+			BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_Y, re2.axis[1] );
+			BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_Z, re2.axis[2] );
+			VectorMA(boltOrg2, -holsterPos[0], re2.axis[1], boltOrg2);
+			VectorMA(boltOrg2, -holsterPos[1], re2.axis[0], boltOrg2);
+			VectorMA(boltOrg2, holsterPos[2], re2.axis[2], boltOrg2);
+			VectorCopy(re2.axis[0], boltAxis0);
+			VectorCopy(re2.axis[1], boltAxis1);
+			VectorCopy(re2.axis[2], boltAxis2);
+			VectorScale(boltAxis2, -1.0f, re2.axis[0]);
+			VectorCopy(boltAxis1, re2.axis[1]);
+			VectorCopy(boltAxis0, re2.axis[2]);
+			AnglesToAxis(holsterAng2, angAxis);
+			MatrixMultiply(angAxis, re2.axis, tempAxis);
+			AxisCopy(tempAxis, re2.axis);
+		}
     	
 		if (!ci->holsterGhoul2 && ci->saber[0].model[0]) {
 			trap->G2API_InitGhoul2Model(&ci->holsterGhoul2, ci->saber[0].model, 0, 0, 0, 0, 0);
@@ -10718,7 +10750,13 @@ void CG_Player( centity_t *cent ) {
 
 	if ((cent->currentState.eFlags & EF_JETPACK) && !(cent->currentState.eFlags & EF_DEAD) &&
 		cg_g2JetpackInstance)
-	{ //should have a jetpack attached
+	{
+		qboolean jetpackVisible = !CG_IsMindTricked(cent->currentState.trickedentindex,
+			cent->currentState.trickedentindex2,
+			cent->currentState.trickedentindex3,
+			cent->currentState.trickedentindex4,
+			cg.snap->ps.clientNum);
+
 		//1 is rhand weap, 2 is lhand weap (akimbo sabs), 3 is jetpack
 		if (!trap->G2API_HasGhoul2ModelOnIndex(&(cent->ghoul2), 3))
 		{
@@ -10752,46 +10790,53 @@ void CG_Player( centity_t *cent ) {
 					VectorMA(flamePos, -13.5f, flameDir, flamePos);
 				}
 
-				if (cent->currentState.eFlags & EF_JETPACK_FLAMING)
-				{ //create effects
-					//FIXME: Just one big effect
-					//Play the effect
-					trap->FX_PlayEffectID(cgs.effects.mBobaJet, flamePos, flameDir, -1, -1, qfalse);
-					trap->FX_PlayEffectID(cgs.effects.mBobaJet, flamePos, flameDir, -1, -1, qfalse);
+				if (jetpackVisible)
+				{
+					if (cent->currentState.eFlags & EF_JETPACK_FLAMING)
+					{ //create effects
+						//FIXME: Just one big effect
+						//Play the effect
+						trap->FX_PlayEffectID(cgs.effects.mBobaJet, flamePos, flameDir, -1, -1, qfalse);
+						trap->FX_PlayEffectID(cgs.effects.mBobaJet, flamePos, flameDir, -1, -1, qfalse);
 
-					//Keep the jet fire sound looping
-					trap->S_AddLoopingSound( cent->currentState.number, cent->lerpOrigin, vec3_origin,
-						trap->S_RegisterSound( "sound/effects/fire_lp" ) );
-				}
-				else
-				{ //just idling
-					//FIXME: Different smaller effect for idle
-					//Play the effect
-					trap->FX_PlayEffectID(cgs.effects.mBobaJet, flamePos, flameDir, -1, -1, qfalse);
+						//Keep the jet fire sound looping
+						trap->S_AddLoopingSound( cent->currentState.number, cent->lerpOrigin, vec3_origin,
+							trap->S_RegisterSound( "sound/effects/fire_lp" ) );
+					}
+					else
+					{ //just idling
+						//FIXME: Different smaller effect for idle
+						//Play the effect
+						trap->FX_PlayEffectID(cgs.effects.mBobaJet, flamePos, flameDir, -1, -1, qfalse);
+					}
 				}
 
 				n++;
 			}
 
-			if (!cent->hasPlayedJetpackSounds)
+			if (jetpackVisible)
 			{
-				trap->S_StartSound (cent->lerpOrigin, 0, CHAN_LOCAL, cg_jetpackOnSound.integer <= 1 ? cgs.media.jetpackOnSound : cgs.media.jetpackOn2Sound );
-				cent->hasPlayedJetpackSounds = qtrue;
-			}
+				if (!cent->hasPlayedJetpackSounds)
+				{
+					trap->S_StartSound (cent->lerpOrigin, 0, CHAN_LOCAL, cg_jetpackOnSound.integer <= 1 ? cgs.media.jetpackOnSound : cgs.media.jetpackOn2Sound );
+					cent->hasPlayedJetpackSounds = qtrue;
+				}
 
-			trap->S_AddLoopingSound( cent->currentState.number, cent->lerpOrigin, vec3_origin,
-				cg_jetpackHoverSound.integer <= 1 ? cgs.media.jetpackHoverSound : cgs.media.jetpackHover2Sound );
+				trap->S_AddLoopingSound( cent->currentState.number, cent->lerpOrigin, vec3_origin,
+					cg_jetpackHoverSound.integer <= 1 ? cgs.media.jetpackHoverSound : cgs.media.jetpackHover2Sound );
+			}
 		}
 		else if (cent->hasPlayedJetpackSounds && !(cent->currentState.eFlags & EF_JETPACK_ACTIVE))
 		{
-			trap->S_StartSound (cent->lerpOrigin, 0, CHAN_LOCAL, cgs.media.jetpackOffSound );
+			if (jetpackVisible)
+				trap->S_StartSound (cent->lerpOrigin, 0, CHAN_LOCAL, cgs.media.jetpackOffSound );
 			cent->hasPlayedJetpackSounds = qfalse;
 		}
 	}
 	else if (cent->currentState.eFlags & EF_JETPACK && cent->currentState.eFlags & EF_DEAD && cg_g2JetpackInstance && !(cent->currentState.eFlags & EF_JETPACK_ACTIVE)
 		&& cent->hasPlayedJetpackSounds)
 	{
-		trap->S_StartSound (cent->lerpOrigin, 0, CHAN_LOCAL, cgs.media.jetpackOffSound );
+		trap->S_StartSound (cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, cgs.media.jetpackOffSound );
 		cent->hasPlayedJetpackSounds = qfalse;
 	}
 	else if (trap->G2API_HasGhoul2ModelOnIndex(&(cent->ghoul2), 3))
@@ -11136,7 +11181,16 @@ void CG_Player( centity_t *cent ) {
 	}
 
 	if (cent->ghoul2 &&
-		(cent->currentState.eType != ET_NPC || (cent->currentState.NPC_class != CLASS_VEHICLE&&cent->currentState.NPC_class != CLASS_REMOTE&&cent->currentState.NPC_class != CLASS_SEEKER)) && //don't add weapon models to NPCs that have no bolt for them!
+		(cent->currentState.eType != ET_NPC || (cent->currentState.NPC_class != CLASS_VEHICLE && 
+			cent->currentState.NPC_class != CLASS_REMOTE && 
+			cent->currentState.NPC_class != CLASS_SEEKER &&
+			!strstr(CG_ConfigString(CS_MODELS + cent->currentState.modelindex), "assassin_droid") &&
+			!strstr(CG_ConfigString(CS_MODELS + cent->currentState.modelindex), "atst") &&
+			!strstr(CG_ConfigString(CS_MODELS + cent->currentState.modelindex), "atdp") &&
+			!strstr(CG_ConfigString(CS_MODELS + cent->currentState.modelindex), "atpt") &&
+			!strstr(CG_ConfigString(CS_MODELS + cent->currentState.modelindex), "atxt") &&
+			!strstr(CG_ConfigString(CS_MODELS + cent->currentState.modelindex), "droideka") &&
+			!strstr(CG_ConfigString(CS_MODELS + cent->currentState.modelindex), "galak_mech"))) && //don't add weapon models to NPCs that have no bolt for them!		
 		cent->ghoul2weapon != CG_G2WeaponInstance(cent, cent->currentState.weapon) &&
 		!(cent->currentState.eFlags & EF_DEAD) && !cent->torsoBolt &&
 		cg.snap && (cent->currentState.number != cg.snap->ps.clientNum || (cg.snap->ps.pm_flags & PMF_FOLLOW)))
@@ -11868,14 +11922,22 @@ skipTrail:
 	{ //keep track of death anim frame for when we copy off the bodyqueue
 		ci->frame = cent->pe.torso.frame;
 	}
-
-	CG_RunTimedForceAnimFX(cent, ci);
-
 				
+	qboolean forceFXVisible = !CG_IsMindTricked(cent->currentState.trickedentindex,
+		cent->currentState.trickedentindex2,
+		cent->currentState.trickedentindex3,
+		cent->currentState.trickedentindex4,
+		cg.snap->ps.clientNum);
+
+	if (forceFXVisible)
+		CG_RunTimedForceAnimFX(cent, ci);
+
+
 	qboolean stopFlameThrowerSnd = qtrue;
 				
 	if (cent->currentState.activeForcePass > FORCE_LEVEL_3
-		&& cent->currentState.NPC_class != CLASS_VEHICLE)
+		&& cent->currentState.NPC_class != CLASS_VEHICLE
+		&& forceFXVisible)
 	{
 		matrix3_t axis;
 		vec3_t tAng, fAng, fxDir;
@@ -11938,7 +12000,8 @@ skipTrail:
 		*/
 	}
 	else if ( cent->currentState.activeForcePass
-		&& cent->currentState.NPC_class != CLASS_VEHICLE)
+		&& cent->currentState.NPC_class != CLASS_VEHICLE
+		&& forceFXVisible)
 	{//doing the electrocuting
 		matrix3_t axis;
 		vec3_t tAng, fAng, fxDir;
@@ -12019,14 +12082,18 @@ skipTrail:
 					cent->flameThrowerSndActive = qfalse;
 					trap->S_MuteSound(cent->currentState.number, CHAN_WEAPON);
 				}
-	//fullbody push effect
-	if (cent->currentState.eFlags & EF_BODYPUSH)
+
+	//fullbody push effect - don't render it for anyone while the local player is zoomed (keeps the scope view clean)
+	if ((cent->currentState.eFlags & EF_BODYPUSH) &&
+		forceFXVisible &&
+		!((cg.predictedPlayerState.zoomMode || !cg.renderingThirdPerson) && cent->currentState.number == cg.predictedPlayerState.clientNum))
 	{
 		CG_ForcePushBodyBlur(cent);
 	}
 
 
-	if (cent->currentState.legsAnim == BOTH_CHOKE3)
+	if (cent->currentState.legsAnim == BOTH_CHOKE3 &&
+		!((cg.predictedPlayerState.zoomMode || !cg.renderingThirdPerson) && cent->currentState.number == cg.predictedPlayerState.clientNum))
 	{
 		vec3_t efOrg;
 		vec3_t chokeFwd;
@@ -12107,7 +12174,8 @@ skipTrail:
 		efOrg[2] = lHandMatrix.matrix[2][3];
 
 		if ( (cent->currentState.forcePowersActive & (1 << FP_GRIP)) &&
-			(cg.renderingThirdPerson || cent->currentState.number != cg.snap->ps.clientNum) )
+			(cg.renderingThirdPerson || cent->currentState.number != cg.snap->ps.clientNum) &&
+			forceFXVisible )
 		{
 			vec3_t boltDir;
 			vec3_t origBolt;
@@ -12201,7 +12269,7 @@ skipTrail:
 			}
 			*/
 		}
-		else if (!(cent->currentState.forcePowersActive & (1 << FP_GRIP)))
+		else if (!(cent->currentState.forcePowersActive & (1 << FP_GRIP)) && forceFXVisible)
 		{
 			//use refractive effect
 			CG_ForcePushBlur( efOrg, cent );
@@ -13953,6 +14021,7 @@ void CG_ResetPlayerEntity( centity_t *cent )
 		//already set.
 		cent->npcLocalSurfOff = 0;
 		cent->npcLocalSurfOn = 0;
+		CG_UpdateNPCBoneAvailability( cent );
 	}
 	else
 	{
@@ -14024,6 +14093,7 @@ void CG_ResetPlayerEntity( centity_t *cent )
 
 			cent->localAnimIndex = CG_G2SkelForModel(cent->ghoul2);
 			cent->eventAnimIndex = CG_G2EvIndexForModel(cent->ghoul2, cent->localAnimIndex);
+			CG_UpdateNPCBoneAvailability( cent );
 
 			//CG_CopyG2WeaponInstance(cent->currentState.weapon, ci->ghoul2Model);
 			//cent->weapon = cent->currentState.weapon;
