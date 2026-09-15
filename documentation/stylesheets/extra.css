@@ -1,0 +1,160 @@
+:root {
+  --md-primary-fg-color: #123047;
+  --md-primary-fg-color--light: #1b4c6d;
+  --md-primary-fg-color--dark: #081923;
+  --md-accent-fg-color: #ddaa38;
+  --jof-gold: #e2b64d;
+  --jof-blue: #5db3d9;
+}
+
+[data-md-color-scheme="default"] {
+  --md-default-bg-color: #f5f7f8;
+  --md-default-fg-color: #152a38;
+  --md-typeset-a-color: #12628b;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #071018;
+  --md-default-fg-color: #dce8ee;
+  --md-typeset-a-color: #74c4e7;
+}
+
+.md-header,
+.md-tabs {
+  background: linear-gradient(100deg, #071722 0%, #12364d 62%, #17384b 100%);
+}
+
+.md-header {
+  box-shadow: 0 1px 0 rgba(226, 182, 77, 0.28);
+}
+
+.md-grid {
+  max-width: 76rem;
+}
+
+.jof-hero {
+  position: relative;
+  overflow: hidden;
+  margin: 0 0 2rem;
+  padding: clamp(2.8rem, 8vw, 6.5rem) clamp(1.5rem, 5vw, 4.5rem);
+  border: 1px solid rgba(226, 182, 77, 0.24);
+  border-radius: 1.25rem;
+  color: #f4f8fa;
+  background:
+    radial-gradient(circle at 78% 28%, rgba(226, 182, 77, 0.22) 0 1px, transparent 2px),
+    radial-gradient(circle at 85% 68%, rgba(93, 179, 217, 0.28) 0 1px, transparent 2px),
+    radial-gradient(circle at 64% 52%, rgba(255, 255, 255, 0.18) 0 1px, transparent 2px),
+    linear-gradient(120deg, #081722 0%, #102f43 54%, #07131d 100%);
+  box-shadow: 0 1.25rem 3.5rem rgba(4, 12, 18, 0.22);
+}
+
+.jof-hero::after {
+  position: absolute;
+  right: -8%;
+  bottom: -65%;
+  width: 32rem;
+  height: 32rem;
+  border: 1px solid rgba(93, 179, 217, 0.24);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4rem rgba(93, 179, 217, 0.035), 0 0 0 8rem rgba(226, 182, 77, 0.025);
+  content: "";
+}
+
+.jof-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.jof-hero h1 {
+  max-width: 14ch;
+  margin: 0.35rem 0 1rem;
+  color: #fff;
+  font-size: clamp(2.35rem, 6vw, 4.9rem);
+  font-weight: 780;
+  letter-spacing: -0.045em;
+  line-height: 0.98;
+}
+
+.jof-hero p {
+  max-width: 46rem;
+  color: #d2e2e9;
+  font-size: 1.04rem;
+}
+
+.jof-hero .md-button {
+  margin-top: 0.6rem;
+  margin-right: 0.4rem;
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #fff;
+}
+
+.jof-hero .md-button--primary {
+  border-color: var(--jof-gold);
+  background: var(--jof-gold);
+  color: #17232b;
+}
+
+.jof-kicker {
+  color: var(--jof-gold);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+}
+
+.jof-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0 3.25rem;
+}
+
+.jof-card {
+  padding: 1.15rem 1.25rem;
+  border: 1px solid color-mix(in srgb, var(--md-default-fg-color) 14%, transparent);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--md-default-bg-color) 92%, var(--jof-blue));
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.jof-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--jof-blue) 60%, transparent);
+  box-shadow: 0 0.75rem 2rem rgba(4, 14, 20, 0.12);
+}
+
+.jof-card h3 {
+  margin-top: 0;
+}
+
+.jof-priorities {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+
+.jof-priorities > div {
+  padding-top: 0.9rem;
+  border-top: 2px solid color-mix(in srgb, var(--jof-gold) 72%, transparent);
+}
+
+.jof-priorities strong {
+  color: var(--jof-gold);
+  font-size: 0.72rem;
+  letter-spacing: 0.13em;
+}
+
+.jof-priorities h3 {
+  margin: 0.35rem 0;
+}
+
+@media screen and (max-width: 48rem) {
+  .jof-grid,
+  .jof-priorities {
+    grid-template-columns: 1fr;
+  }
+
+  .jof-hero {
+    border-radius: 0.85rem;
+  }
+}

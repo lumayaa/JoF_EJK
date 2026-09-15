@@ -1,0 +1,89 @@
+site_name: JoF EternalJK
+site_description: A safe, modern Jedi Academy multiplayer client for the JoF community and beyond.
+site_url: https://jedioffreedom.github.io/JoF_EJK/
+repo_url: https://github.com/JediofFreedom/JoF_EJK
+repo_name: JediofFreedom/JoF_EJK
+edit_uri: edit/beta/documentation/
+docs_dir: documentation
+site_dir: site
+copyright: JoF EternalJK is free software released under GPL-2.0.
+
+theme:
+  name: material
+  language: en
+  icon:
+    logo: material/sword-cross
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.path
+    - navigation.top
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Install:
+      - Installation: installation.md
+      - Troubleshooting: troubleshooting.md
+  - Features: features.md
+  - Reference:
+      - Console controls: reference.md
+      - Full jaPRO reference: japro-reference.md
+  - Develop:
+      - Build and contribute: development.md
+      - Architecture:
+          - Overview: architecture.md
+          - Library loading: developer/libraries.md
+          - Renderer architecture: developer/renderer-architecture.md
+          - Language strings: developer/language strings.md
+          - Sound code notes: developer/sound-code-declutter.md
+  - Releases: releases.md
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/JediofFreedom/JoF_EJK
+      name: JoF EternalJK on GitHub
+    - icon: material/web
+      link: https://jofacademy.eu/
+      name: Jedi of Freedom
