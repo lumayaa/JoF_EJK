@@ -1,53 +1,37 @@
-# JoF EternalJK Client
+# JoF EternalJK
 
-[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-12628b.svg)](https://jedioffreedom.github.io/JoF_EJK/)
+[![Documentation](https://img.shields.io/badge/docs-read-12628b.svg)](https://jedioffreedom.github.io/JoF_EJK/)
 [![Website](https://img.shields.io/badge/website-jofacademy-brightgreen.svg)](https://jofacademy.eu/)
+[![Latest release](https://img.shields.io/github/v/release/JediofFreedom/JoF_EJK?label=release)](https://github.com/JediofFreedom/JoF_EJK/releases/latest)
+[![Build](https://github.com/JediofFreedom/JoF_EJK/actions/workflows/build.yml/badge.svg?branch=beta)](https://github.com/JediofFreedom/JoF_EJK/actions/workflows/build.yml)
+[![License: GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue.svg)](LICENSE.txt)
 
-This is the JoF EternalJK Client, focused on providing a safe client option for JoF members, friends, and others to use.
+JoF EternalJK is a community-maintained multiplayer client and game-code project for *Star Wars Jedi Knight: Jedi Academy*. It combines the EternalJK/OpenJK foundation with jaPRO-derived features, JoF improvements, and multiple renderer options.
 
-It was based on an [EternalJK](https://github.com/eternalcodes/EternalJK) version given to us by [Bucky](https://github.com/Bucky21659), with the promise of not sharing code protected by the TECH definition. This repository has that TECH code removed and is where continued development happens.
+## Get started
 
-Read the [JoF EJK documentation](https://jedioffreedom.github.io/JoF_EJK/) for installation, features, console controls, troubleshooting, architecture, and development guides.
+1. [Download the latest stable release](https://github.com/JediofFreedom/JoF_EJK/releases/latest).
+2. Follow the [platform-specific installation guide](https://jedioffreedom.github.io/JoF_EJK/installation/).
+3. Launch JoF EternalJK and run `/modversion` in the console to confirm the installed build.
 
-## License
+The documentation also covers [features](https://jedioffreedom.github.io/JoF_EJK/features/), [console controls](https://jedioffreedom.github.io/JoF_EJK/reference/), and [troubleshooting](https://jedioffreedom.github.io/JoF_EJK/troubleshooting/).
 
-[![License](https://img.shields.io/github/license/eternalcodes/EternalJK.svg)](https://github.com/eternalcodes/EternalJK/blob/master/LICENSE.txt)
-
-OpenJK is licensed under GPLv2 as free software. You are free to use, modify, and redistribute OpenJK following the terms in [LICENSE.txt](LICENSE.txt).
+> [!IMPORTANT]
+> JoF EternalJK does not include the original game data. A legal Jedi Academy installation is required.
 
 ## Contributing
 
-Please target the **beta** branch. PRs opened against **master** may be closed and reopened against beta.
+Open pull requests against the **beta** branch. Stable release work is promoted to **master** by the maintainers.
 
-See the [development guide](https://jedioffreedom.github.io/JoF_EJK/development/) for build options and the pull-request checklist.
+See the [development guide](https://jedioffreedom.github.io/JoF_EJK/development/) for build commands, project layout, documentation previewing, and the contribution checklist.
 
-## For players
+## Project history
 
-Installing and running JoF EternalJK:
+This project began from an [EternalJK](https://github.com/eternalcodes/EternalJK) version provided by [Bucky](https://github.com/Bucky21659). Code protected by the original `TECH` definition is not included in this public repository. Continued JoF development happens here.
 
-1. [Download the latest release](https://github.com/JediofFreedom/JoF_EJK/releases/latest).
-2. Extract it into the Jedi Academy `GameData` folder. For Steam users, this is normally under `<Steam Folder>/steamapps/common/Jedi Academy/GameData/`.
-3. Run the EternalJK executable for your platform and architecture. On Windows, renaming it to `jamp.exe` can improve Steam integration.
+JoF maintainers and contributors include [Milamber](https://github.com/Milamber0), Daniel, [Jediman](https://github.com/Jediman9973), [lumayaa](https://github.com/lumayaa), [Sol-Vulpes](https://github.com/Sol-Vulpes), and [Clix (looZ149)](https://github.com/looZ149). The project also incorporates work from OpenJK, EternalJK, jaPRO, and renderer contributors including [SomaZ](https://github.com/SomaZ), [Sunny](https://github.com/JKSunny), and [Tayst](https://github.com/taysta).
 
-For platform-specific archive names and update notes, use the [installation guide](https://jedioffreedom.github.io/JoF_EJK/installation/).
+## License
 
-## Credits
-
-### JoF maintainers and contributors
-
-- [Milamber](https://github.com/Milamber0)
-- Daniel
-- [Jediman](https://github.com/Jediman9973)
-- [lumayaa](https://github.com/lumayaa)
-- [Sol-Vulpes](https://github.com/Sol-Vulpes)
-- [Clix (looZ149)](https://github.com/looZ149)
-
-### External contributors
-
-- [Bucky](https://github.com/Bucky21659) — special thanks for providing the starting point for this client
-- [EternalJK](https://github.com/eternalcodes)
-- [jaPRO](https://github.com/videoP)
-- [SomaZ](https://github.com/SomaZ) — Rend2 renderer work packaged with releases
-- [Sunny](https://github.com/JKSunny) — Vulkan renderer work packaged with releases
-- [Tayst](https://github.com/taysta) — changes sourced through Sunny's EternalJK work
+JoF EternalJK is free software distributed under the [GNU General Public License version 2](LICENSE.txt). Third-party components and assets may carry their own notices.
 

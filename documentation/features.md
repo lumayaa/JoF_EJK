@@ -1,19 +1,22 @@
 # Features
 
-JoF EJK combines an EternalJK/OpenJK engine base, jaPRO-derived client and game features, community renderer work, and JoF-specific polish.
+JoF EternalJK combines an EternalJK/OpenJK engine base, jaPRO-derived client and server features, community renderer work, and JoF-specific maintenance. Availability depends on which part of the project supplies a feature.
+
+!!! tip "Client feature or server rule?"
+    HUD, rendering, demo, and local presentation settings travel with the client. Movement rules, accounts, administration, and authoritative gameplay require a server running compatible game code.
 
 ## Player experience
 
-- Customizable HUD elements, saber-style graphics, scoreboard improvements, and player/NPC health display options.
-- Movement keys, speedometer, accelerometer, jump measurements, race timer, and strafe-helper displays.
-- Demo recording helpers, automatic screenshots, spectator camera damping, and follow shortcuts.
-- Bright skins, ally/enemy model forcing, holstered sabers, custom Force effects, and configurable visual remaps.
-- Predicted weapon effects, high-FPS command-rate controls, improved sound buffering, and crash fixes.
-- Discord Rich Presence support in supported builds.
+- Customizable HUD elements, scoreboard options, chat presentation, player-name controls, and saber-style graphics.
+- Movement keys, configurable speedometer and acceleration displays, race timing, strafe helpers, and strafe trails.
+- Demo recording helpers, end-of-round screenshots, spectator camera options, and shortcuts for following racers or flag carriers.
+- Ally/enemy model forcing, holstered sabers, cosmetics, configurable effects, and visual remaps.
+- Client-side prediction and networking controls maintained for high-frame-rate multiplayer.
+- Discord Rich Presence in builds compiled with the integration enabled.
 
 ## Renderers and platforms
 
-The project builds the classic renderer and the experimental Rend2 renderer. Windows release packaging also includes the community Vulkan renderer used by the project. Renderer behavior and availability vary by platform and build.
+The source tree builds the classic OpenGL renderer and the experimental Rend2 renderer. Windows release archives also package the external Vulkan renderer selected by the release workflow. Renderer availability therefore varies by platform and archive.
 
 Release automation currently publishes:
 
@@ -21,21 +24,27 @@ Release automation currently publishes:
 - Linux x86 and x86_64
 - macOS x86_64 and arm64
 
-## Multiplayer and movement
+## Server game systems
 
-JoF EJK carries client and server game modules. Depending on the server configuration, available systems include race mode, movement styles, grappling, dueling controls, admin commands, accounts, Elo ranking, emotes, CTF refinements, weapon/Force tuning, and compatibility switches.
+When the server runs the JoF game module, operators can configure:
 
-!!! note "The server remains authoritative"
-    Client-side display and prediction features travel with you. Server-side rules only apply when the connected server runs compatible game code and enables them.
+- race mode, checkpoints, timing, movement styles, and grappling;
+- dueling rules, Elo ranking, accounts, and administrative levels;
+- CTF behavior, emotes, voting, team limits, and compatibility switches; and
+- saber, Force, weapon, knockback, projectile, and unlagged behavior.
 
-## Recent JoF work
+These systems are opt-in and server-authoritative. Connecting with JoF EternalJK does not change the rules of an unrelated server.
 
-The 1.6 series included HUD graphics for additional saber styles, larger NPC and client limits, renderer menu improvements, Linux and macOS release builds, radial-menu work, hidden-skin controls, filesystem threading for the UI, weapon-animation prediction, Force Sense NPC health bars, and multiple crash fixes.
+## Engine and maintenance work
+
+The repository also carries the multiplayer engine, dedicated server, UI, and native game modules. Ongoing work includes platform builds, renderer integration, filesystem and loading behavior, NPC support, crash fixes, and compatibility with existing Jedi Academy content.
+
+For exact changes in a build, use its generated GitHub release notes and `/modversion`; feature summaries intentionally avoid promising that every server enables every system.
 
 [Read the release history](releases.md){ .md-button }
 [Browse console controls](reference.md){ .md-button }
 
 ## Project lineage
 
-JoF EJK is based on EternalJK and OpenJK and includes work derived from jaPRO and other community projects. Renderer packaging also incorporates work maintained outside this repository. See the repository history, license notices, and [credits](development.md#credits) for attribution.
+JoF EternalJK is based on EternalJK and OpenJK and includes work derived from jaPRO and other community projects. Windows packaging also incorporates a Vulkan renderer maintained outside this repository. See the repository history, license notices, and [credits](development.md#credits) for attribution.
 

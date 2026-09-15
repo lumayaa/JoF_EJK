@@ -12,6 +12,9 @@ on:
       - "**.md"
       - ".gitignore"
       - "docs/**"
+      - "documentation/**"
+      - "mkdocs.yml"
+      - "requirements-docs.txt"
       - ".github/**"
 
   # Master: manual + nightly
@@ -505,9 +508,9 @@ jobs:
           LAST_COMMIT=$(git rev-list -n 1 "$LAST_TAG")
           echo "Last tag commit: $LAST_COMMIT"
 
-          # Ignore docs/md/.gitignore changes
+          # Ignore documentation-only changes.
           CHANGES=$(git diff --name-only "$LAST_COMMIT" HEAD \
-            | grep -vE '(\.md$|^\.gitignore$|^docs/)' || true)
+            | grep -vE '(\.md$|^\.gitignore$|^docs/|^documentation/|^mkdocs\.yml$|^requirements-docs\.txt$)' || true)
 
           if [ -z "$CHANGES" ]; then
             echo "No relevant changes; skipping nightly/manual build."

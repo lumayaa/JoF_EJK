@@ -1,12 +1,16 @@
 site_name: JoF EternalJK
-site_description: A safe, modern Jedi Academy multiplayer client for the JoF community and beyond.
+site_description: Install, configure, and contribute to the JoF EternalJK multiplayer client.
+site_author: Jedi of Freedom contributors
 site_url: https://jedioffreedom.github.io/JoF_EJK/
 repo_url: https://github.com/JediofFreedom/JoF_EJK
 repo_name: JediofFreedom/JoF_EJK
 edit_uri: edit/beta/documentation/
 docs_dir: documentation
 site_dir: site
-copyright: JoF EternalJK is free software released under GPL-2.0.
+strict: true
+exclude_docs: |
+  developer/sound-code-declutter.md
+copyright: 'JoF EternalJK is free software licensed under <a href="https://github.com/JediofFreedom/JoF_EJK/blob/master/LICENSE.txt">GPL-2.0</a>.'
 
 theme:
   name: material
@@ -33,10 +37,13 @@ theme:
     - navigation.sections
     - navigation.path
     - navigation.top
+    - navigation.footer
     - toc.follow
     - search.suggest
     - search.highlight
     - search.share
+    - content.action.edit
+    - content.action.view
     - content.code.copy
 
 nav:
@@ -55,7 +62,6 @@ nav:
           - Library loading: developer/libraries.md
           - Renderer architecture: developer/renderer-architecture.md
           - Language strings: developer/language strings.md
-          - Sound code notes: developer/sound-code-declutter.md
   - Releases: releases.md
 
 plugins:
@@ -72,6 +78,7 @@ markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
+  - pymdownx.keys
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true

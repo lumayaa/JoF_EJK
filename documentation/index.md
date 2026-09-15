@@ -1,4 +1,6 @@
 ---
+title: JoF EternalJK
+description: Install, configure, and contribute to the JoF EternalJK multiplayer client.
 hide:
   - navigation
   - toc
@@ -8,9 +10,9 @@ hide:
 
 <span class="jof-kicker">JOF ETERNALJK</span>
 
-# Jedi Academy, sharpened for the community
+# Keep Jedi Academy moving
 
-A safe, cross-platform multiplayer client maintained for Jedi of Freedom members, friends, and everyone who still calls Jedi Academy home.
+A community-maintained multiplayer client with modern platform builds, practical quality-of-life features, and the compatibility expected by Jedi Academy players.
 
 [Install JoF EJK](installation.md){ .md-button .md-button--primary }
 [Download the latest release](https://github.com/JediofFreedom/JoF_EJK/releases/latest){ .md-button }
@@ -21,39 +23,50 @@ A safe, cross-platform multiplayer client maintained for Jedi of Freedom members
 
 <article class="jof-card" markdown>
 
-### Built to play
+### Install with confidence
 
-Windows, Linux, macOS, Intel, and Apple Silicon builds are published from one maintained codebase.
+Choose the correct Windows, Linux, or macOS archive and put every file in the right place.
 
 [Choose your download →](installation.md)
 </article>
 
 <article class="jof-card" markdown>
 
-### Made for JKA
+### Know what is included
 
-JoF refinements sit alongside EternalJK, OpenJK, jaPRO, and renderer work from across the community.
+Understand which features belong to the client and which depend on a compatible server.
 
 [Explore the features →](features.md)
 </article>
 
 <article class="jof-card" markdown>
 
-### Ready to tune
+### Tune without guessing
 
-Find HUD, movement, rendering, networking, race, demo, and server controls without digging through source.
+Find useful console commands and current defaults without having to search the source tree.
 
 [Search the reference →](reference.md)
 </article>
 
 </div>
 
-## One client, three priorities
+## Start in three steps
+
+1. Install *Star Wars Jedi Knight: Jedi Academy* and locate its game directory.
+2. Download the archive matching your operating system and CPU from the [latest release](https://github.com/JediofFreedom/JoF_EJK/releases/latest).
+3. Copy the packaged files into the game directory and launch the included EternalJK executable.
+
+[Read the complete installation guide](installation.md){ .md-button .md-button--primary }
+
+!!! important
+    Release archives contain JoF EternalJK binaries and supporting assets, not the licensed Jedi Academy data. Keep the original `base/assets*.pk3` files from your game installation.
+
+## One project, three priorities
 
 <div class="jof-priorities" markdown>
-<div><strong>01</strong><h3>Community first</h3><p>A dependable client for JoF servers that remains useful across the wider Jedi Academy multiplayer community.</p></div>
-<div><strong>02</strong><h3>Modern where it counts</h3><p>Current platform builds, multiple renderers, improved stability, and quality-of-life work around the original game.</p></div>
-<div><strong>03</strong><h3>Open development</h3><p>GPL-licensed source, public releases, documented provenance, and a beta branch for proposed changes.</p></div>
+<div><strong>01</strong><h3>Play</h3><p>Client-side presentation, movement tools, demo helpers, and compatibility improvements for everyday multiplayer.</p></div>
+<div><strong>02</strong><h3>Host</h3><p>Server game code for configurable movement, races, duels, administration, accounts, and gameplay rules.</p></div>
+<div><strong>03</strong><h3>Contribute</h3><p>GPL-licensed source, automated cross-platform releases, and a documented beta-to-stable workflow.</p></div>
 </div>
 
 ## Start here
@@ -67,6 +80,9 @@ Find HUD, movement, rendering, networking, race, demo, and server controls witho
 | Diagnose a launch or renderer problem | [Troubleshooting](troubleshooting.md) |
 | See shipped changes | [Releases](releases.md) |
 
-!!! info "Project scope"
-    JoF EJK is a community-maintained client and engine project. You still need a legal installation of *Star Wars Jedi Knight: Jedi Academy* for the original game data.
+## Stable or beta?
+
+The **stable** release is the right choice for most players. **Beta** releases contain changes being tested before promotion to stable and may regress. Both channels are available on the [GitHub Releases page](https://github.com/JediofFreedom/JoF_EJK/releases).
+
+If something breaks, start with [troubleshooting](troubleshooting.md). Include `/modversion`, your platform and architecture, and the selected renderer when reporting a problem.
 

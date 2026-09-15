@@ -7,6 +7,10 @@
   --jof-blue: #5db3d9;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 [data-md-color-scheme="default"] {
   --md-default-bg-color: #f5f7f8;
   --md-default-fg-color: #152a38;
@@ -30,6 +34,19 @@
 
 .md-grid {
   max-width: 76rem;
+}
+
+.md-content__inner {
+  padding-bottom: 2.5rem;
+}
+
+.md-typeset :focus-visible {
+  outline: 3px solid var(--md-accent-fg-color);
+  outline-offset: 3px;
+}
+
+.md-typeset table:not([class]) th {
+  background: rgba(18, 48, 71, 0.08);
 }
 
 .jof-hero {
@@ -58,6 +75,7 @@
   border-radius: 50%;
   box-shadow: 0 0 0 4rem rgba(93, 179, 217, 0.035), 0 0 0 8rem rgba(226, 182, 77, 0.025);
   content: "";
+  pointer-events: none;
 }
 
 .jof-hero > * {
@@ -88,10 +106,24 @@
   color: #fff;
 }
 
+.jof-hero .md-button:hover,
+.jof-hero .md-button:focus-visible {
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
 .jof-hero .md-button--primary {
   border-color: var(--jof-gold);
   background: var(--jof-gold);
   color: #17232b;
+}
+
+.jof-hero .md-button--primary:hover,
+.jof-hero .md-button--primary:focus-visible {
+  border-color: #f1ca6d;
+  background: #f1ca6d;
+  color: #101b22;
 }
 
 .jof-kicker {
@@ -109,9 +141,12 @@
 }
 
 .jof-card {
+  min-width: 0;
   padding: 1.15rem 1.25rem;
+  border: 1px solid rgba(21, 42, 56, 0.14);
   border: 1px solid color-mix(in srgb, var(--md-default-fg-color) 14%, transparent);
   border-radius: 0.8rem;
+  background: rgba(93, 179, 217, 0.06);
   background: color-mix(in srgb, var(--md-default-bg-color) 92%, var(--jof-blue));
   transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
@@ -126,6 +161,10 @@
   margin-top: 0;
 }
 
+.jof-card > :last-child {
+  margin-bottom: 0;
+}
+
 .jof-priorities {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -135,6 +174,7 @@
 
 .jof-priorities > div {
   padding-top: 0.9rem;
+  border-top: 2px solid rgba(226, 182, 77, 0.72);
   border-top: 2px solid color-mix(in srgb, var(--jof-gold) 72%, transparent);
 }
 
@@ -155,6 +195,28 @@
   }
 
   .jof-hero {
+    padding: 2.4rem 1.25rem;
     border-radius: 0.85rem;
+  }
+
+  .jof-hero .md-button {
+    display: block;
+    width: 100%;
+    margin-right: 0;
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .jof-card {
+    transition: none;
+  }
+
+  .jof-card:hover {
+    transform: none;
   }
 }

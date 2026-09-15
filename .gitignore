@@ -149,6 +149,8 @@ build64
 buildw64
 build128
 build256
+/site/
+.venv/
 eggs
 parts
 bin
