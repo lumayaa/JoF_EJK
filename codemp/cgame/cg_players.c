@@ -11849,15 +11849,6 @@ void CG_Player( centity_t *cent ) {
 		legs.shaderRGBA[2] = ci->colorOverride[2]*255.0f;
 		legs.shaderRGBA[3] = cent->currentState.customRGBA[3];
 	}
-	else if ( cent->currentState.number == cg.snap->ps.clientNum && !Q_stricmp( ci->skinName, "rgb" ) )
-	{ //local player with an RGB skin: use our own char_color_* cvars so the color
-		//we picked (including black, 0 0 0) is what we see, even if the server
-		//clamped the value it sent us (g_charRestrictRGB)
-		legs.shaderRGBA[0] = char_color_red.integer;
-		legs.shaderRGBA[1] = char_color_green.integer;
-		legs.shaderRGBA[2] = char_color_blue.integer;
-		legs.shaderRGBA[3] = cent->currentState.customRGBA[3];
-	}
 	else
 	{
 		legs.shaderRGBA[0] = cent->currentState.customRGBA[0];
