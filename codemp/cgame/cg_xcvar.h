@@ -37,6 +37,11 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 XCVAR_DEF( g_forceRegenTime,		"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cl_currentServerAddress,	"0",	NULL,					CVAR_ROM )
 
+// RGB skin colors (mirrors the client char_color_* userinfo cvars)
+XCVAR_DEF( char_color_red,			"255",	NULL,					CVAR_NONE )
+XCVAR_DEF( char_color_green,		"255",	NULL,					CVAR_NONE )
+XCVAR_DEF( char_color_blue,			"255",	NULL,					CVAR_NONE )
+
 //JAPRO HUD / DISPLAY
 XCVAR_DEF( cg_movementKeys,			"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_movementKeysX,		"465",	NULL,					CVAR_ARCHIVE )
