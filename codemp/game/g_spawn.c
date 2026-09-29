@@ -290,6 +290,7 @@ void SP_target_relay (gentity_t *ent);
 void SP_target_kill (gentity_t *ent);
 void SP_target_position (gentity_t *ent);
 void SP_target_location (gentity_t *ent);
+void SP_target_media (gentity_t *ent);
 void SP_target_counter (gentity_t *self);
 void SP_target_random (gentity_t *self);
 void SP_target_scriptrunner( gentity_t *self );
@@ -866,6 +867,7 @@ spawn_t	spawns[] = {
 	{ "target_laser",					qfalse,	SP_target_laser },
 	{ "target_level_change",			qtrue,	SP_target_level_change },
 	{ "target_location",				qtrue,	SP_target_location },
+	{ "target_media",				qtrue,	SP_target_media },
 	{ "target_play_music",				qtrue,	SP_target_play_music },
 	{ "target_position",				qtrue,	SP_target_position },
 	{ "target_print",					qtrue,	SP_target_print },

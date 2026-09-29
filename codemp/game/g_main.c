@@ -25,6 +25,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "g_local.h"
 #include "g_dialogue.h"
+#include "g_media.h"
 #include "g_ICARUScb.h"
 #include "g_nav.h"
 #include "bg_saga.h"
@@ -345,6 +346,7 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 
 	G_InitWorldSession();
 	G_DialogueInit();
+	G_MediaInit();
 
 	// initialize all entities for this game
 	memset( g_entities, 0, MAX_GENTITIES * sizeof(g_entities[0]) );
@@ -565,6 +567,7 @@ void G_ShutdownGame( int restart ) {
 
 	G_CleanAllFakeClients(); //get rid of dynamically allocated fake client structs.
 	G_DialogueShutdown();
+	G_MediaShutdown();
 
 	BG_ClearAnimsets(); //free all dynamic allocations made through the engine
 
@@ -4050,6 +4053,8 @@ void G_RunFrame( int levelTime ) {
 		// Logical entities only think, nothing else
 		G_RunThink(ent);
 	}
+
+	G_MediaRunFrame();
 
 	if (g_KOTH.integer >= 2 && level.gametype == GT_TEAM)
 	{ //handle gradual healing in koth

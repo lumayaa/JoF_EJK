@@ -61,6 +61,8 @@ set(MPGameGameFiles
 	"${MPDir}/game/g_items.c"
 	"${MPDir}/game/g_log.c"
 	"${MPDir}/game/g_main.c"
+	"${MPDir}/game/g_media.c"
+	"${MPDir}/game/g_media.h"
 	"${MPDir}/game/g_mem.c"
 	"${MPDir}/game/g_misc.c"
 	"${MPDir}/game/g_missile.c"

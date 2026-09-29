@@ -23,6 +23,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "g_local.h"
 #include "g_dialogue.h"
+#include "g_media.h"
 
 //==========================================================
 
@@ -1065,6 +1066,7 @@ void target_play_music_use(gentity_t *self, gentity_t *other, gentity_t *activat
 {
 	G_ActivateBehavior(self,BSET_USE);
 	trap->SetConfigstring( CS_MUSIC, self->message );
+	G_MediaMapMusicChanged();
 }
 
 /*QUAKED target_play_music (1 0 0) (-4 -4 -4) (4 4 4)

@@ -24,6 +24,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // g_utils.c -- misc utility functions for game module
 
 #include "g_local.h"
+#include "g_media.h"
 #include "bg_saga.h"
 #include "qcommon/q_shared.h"
 
@@ -1027,6 +1028,7 @@ void G_FreeEntity( gentity_t *ed ) {
 	if ( ed->neverFree ) {
 		return;
 	}
+	G_MediaEntityFree( ed );
 
 	//rww - this may seem a bit hackish, but unfortunately we have no access
 	//to anything ghoul2-related on the server and thus must send a message
